@@ -472,6 +472,18 @@ static void enterPortalMode(PortalEntryReason reason) {
     ledFeedback("portal");
     #if !VOICE_ONLY_BUILD
     showSetupScreen(apName.c_str());
+    #if EPD_BPP >= 2
+    // Color panels allocate a large 2bpp framebuffer while drawing the setup
+    // screen (A0: 105,984 bytes).  The portal does not need that buffer, and
+    // keeping it leaves too little contiguous heap for AP+STA/WPA association.
+    if (colorBuf) {
+        free(colorBuf);
+        colorBuf = nullptr;
+        useColorBuf = false;
+        Serial.printf("[PORTAL] Released color framebuffer; free heap=%u\n",
+                      (unsigned)ESP.getFreeHeap());
+    }
+    #endif
     #endif
     startCaptivePortal();
     ctx.state = DeviceState::PORTAL;
@@ -1443,10 +1455,17 @@ void loop() {
 #if INKSIGHT_IMG_BUF_BYTES_MACRO > 20000
     // Second full-frame static buffer overflows classic ESP32 DRAM for 5.83"/7.5" panels.
     static uint8_t *alertBackupBuf = nullptr;
-    if (!alertBackupBuf) {
+    static bool alertBackupAllocAttempted = false;
+    // This buffer is only used by focus alerts.  Allocating it unconditionally
+    // made large color-panel builds retry malloc every loop iteration even
+    // when focus listening was disabled, flooding the serial log.
+    if (focusListening && !alertBackupBuf && !alertBackupAllocAttempted) {
+        alertBackupAllocAttempted = true;
         alertBackupBuf = (uint8_t *)malloc(IMG_BUF_LEN);
         if (!alertBackupBuf) {
-            Serial.println("[MEM] alertBackupBuf malloc failed; focus alerts disabled");
+            Serial.printf("[MEM] alertBackupBuf malloc failed (need=%d, free=%u); "
+                          "focus alerts disabled for this boot\n",
+                          IMG_BUF_LEN, (unsigned)ESP.getFreeHeap());
         }
     }
 #else

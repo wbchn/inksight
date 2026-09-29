@@ -1,7 +1,7 @@
 #include "epd_driver.h"
 #include "config.h"
 
-#if defined(EPD_PANEL_42_SSD1683_BW) || defined(EPD_PANEL_42_DKE_RY683) || defined(EPD_PANEL_42_GDEM042F52)
+#if defined(EPD_PANEL_398_SE0398NZ07_FNG_A0) || defined(EPD_PANEL_42_SSD1683_BW) || defined(EPD_PANEL_42_DKE_RY683) || defined(EPD_PANEL_42_GDEM042F52)
 
 // ── Software SPI (bit-bang) for 4.2" panels ──
 // Avoids Busy Timeout on ESP32-C3 with non-default pins; no GxEPD2 dependency.
@@ -54,7 +54,7 @@ static void epdWaitBusy(unsigned long maxMs = 0) {
 }
 
 static void epdReset() {
-#if defined(EPD_PANEL_42_GDEM042F52)
+#if defined(EPD_PANEL_398_SE0398NZ07_FNG_A0) || defined(EPD_PANEL_42_GDEM042F52)
     delay(20);
     digitalWrite(PIN_EPD_RST, LOW);  delay(40);
     digitalWrite(PIN_EPD_RST, HIGH); delay(50);
@@ -67,6 +67,147 @@ static void epdReset() {
     digitalWrite(PIN_EPD_RST, HIGH); delay(100);
 #endif
 }
+
+#if defined(EPD_PANEL_398_SE0398NZ07_FNG_A0)
+
+// The A0 controller samples command and its data under one CS assertion.
+static void epdA0Command(uint8_t command, const uint8_t *data = nullptr, size_t length = 0) {
+    digitalWrite(PIN_EPD_DC, LOW);
+    digitalWrite(PIN_EPD_CS, LOW);
+    spiWriteByte(command);
+    if (length > 0) {
+        digitalWrite(PIN_EPD_DC, HIGH);
+        for (size_t i = 0; i < length; i++) {
+            spiWriteByte(data[i]);
+        }
+    }
+    digitalWrite(PIN_EPD_CS, HIGH);
+}
+
+static void epdA0BeginData(uint8_t command) {
+    digitalWrite(PIN_EPD_DC, LOW);
+    digitalWrite(PIN_EPD_CS, LOW);
+    spiWriteByte(command);
+    digitalWrite(PIN_EPD_DC, HIGH);
+}
+
+static void epdA0EndData() {
+    digitalWrite(PIN_EPD_CS, HIGH);
+}
+
+static bool epdA0WaitBusyRelease(const char *stage, unsigned long timeoutMs) {
+    unsigned long startedAt = millis();
+    while (digitalRead(PIN_EPD_BUSY) == LOW) {
+        delay(5);
+        if (millis() - startedAt >= timeoutMs) {
+            Serial.printf("[EPD-A0] %s BUSY release timeout after %lums\n", stage, timeoutMs);
+            return false;
+        }
+    }
+    Serial.printf("[EPD-A0] %s BUSY released after %lums\n", stage, millis() - startedAt);
+    return true;
+}
+
+static bool epdA0WaitBusyCycle(const char *stage, unsigned long releaseTimeoutMs,
+                               bool requireAssertion = true) {
+    static const unsigned long ASSERT_TIMEOUT_MS = 2000;
+    unsigned long commandCompletedAt = millis();
+    while (digitalRead(PIN_EPD_BUSY) == HIGH &&
+           millis() - commandCompletedAt < ASSERT_TIMEOUT_MS) {
+        delay(1);
+    }
+
+    if (digitalRead(PIN_EPD_BUSY) == HIGH) {
+        Serial.printf("[EPD-A0] %s BUSY did not assert LOW within %lums\n",
+                      stage, ASSERT_TIMEOUT_MS);
+        return !requireAssertion;
+    }
+
+    Serial.printf("[EPD-A0] %s BUSY asserted after %lums\n",
+                  stage, millis() - commandCompletedAt);
+    return epdA0WaitBusyRelease(stage, releaseTimeoutMs);
+}
+
+static void epdA0SetWindow(int yStart, int yEnd) {
+    uint8_t data[9] = {
+        0x00, 0x00,
+        (uint8_t)(((W - 1) >> 8) & 0xFF), (uint8_t)((W - 1) & 0xFF),
+        (uint8_t)((yStart >> 8) & 0xFF), (uint8_t)(yStart & 0xFF),
+        (uint8_t)((yEnd >> 8) & 0xFF), (uint8_t)(yEnd & 0xFF),
+        0x01,
+    };
+    epdA0Command(0x83, data, sizeof(data));
+}
+
+static bool epdA0InitPanel() {
+    epdReset();
+    if (!epdA0WaitBusyRelease("reset", 10000)) return false;
+    delay(30);
+
+    const uint8_t psr = 0x0B;
+    epdA0Command(0x00, &psr, 1);
+
+    const uint8_t resolution[4] = {
+        (uint8_t)(W >> 8), (uint8_t)(W & 0xFF),
+        (uint8_t)(H >> 8), (uint8_t)(H & 0xFF),
+    };
+    epdA0Command(0x61, resolution, sizeof(resolution));
+    epdA0Command(0x04);
+    return epdA0WaitBusyCycle("power-on", 60000);
+}
+
+static int epdA0PanelY(int logicalRow) {
+    return logicalRow < H / 2 ? logicalRow * 2 : 2 * (H - logicalRow) - 1;
+}
+
+// InkSight raw 2bpp is row-major, top-to-bottom, MSB-first. The controller's
+// unusual part is its gate order, so only Y is remapped here; no second 180°
+// buffer transform is applied.
+static bool epdA0WriteFrame(const uint8_t *buf2bpp) {
+    const int rowBytes = W / 4;
+    unsigned long startedAt = millis();
+    for (int row = 0; row < H; row++) {
+        int panelY = epdA0PanelY(row);
+        epdA0SetWindow(panelY, panelY);
+        epdA0BeginData(0x10);
+        const uint8_t *source = buf2bpp + (size_t)row * rowBytes;
+        for (int i = 0; i < rowBytes; i++) {
+            spiWriteByte(source[i]);
+        }
+        epdA0EndData();
+    }
+    Serial.printf("[EPD-A0] frame written in %lums\n", millis() - startedAt);
+    return true;
+}
+
+static bool epdA0Refresh() {
+    epdA0SetWindow(0, H - 1);
+    const uint8_t zero = 0x00;
+    epdA0Command(0x12, &zero, 1);
+    return epdA0WaitBusyCycle("full-refresh", 60000);
+}
+
+static void epdA0PowerOff() {
+    const uint8_t zero = 0x00;
+    epdA0Command(0x02, &zero, 1);
+    epdA0WaitBusyCycle("power-off", 60000, false);
+}
+
+static bool epdA0Display2bpp(const uint8_t *buf2bpp) {
+    for (int attempt = 1; attempt <= 3; attempt++) {
+        Serial.printf("[EPD-A0] display attempt %d/3\n", attempt);
+        if (!epdA0InitPanel()) continue;
+        if (!epdA0WriteFrame(buf2bpp)) continue;
+        if (!epdA0Refresh()) continue;
+        epdA0PowerOff();
+        Serial.println("[EPD-A0] display complete");
+        return true;
+    }
+    Serial.println("[EPD-A0] display failed after 3 attempts");
+    return false;
+}
+
+#endif
 
 // ── Helper: configure RAM window for full screen ────────────
 
@@ -110,7 +251,11 @@ void gpioInit() {
 // ── EPD full init (standard mode) ──
 
 void epdInit() {
-#if defined(EPD_PANEL_42_DKE_RY683)
+#if defined(EPD_PANEL_398_SE0398NZ07_FNG_A0)
+    if (!epdA0InitPanel()) {
+        Serial.println("[EPD-A0] initialization failed");
+    }
+#elif defined(EPD_PANEL_42_DKE_RY683)
     Serial.printf("[EPD-init] begin BUSY=%d\n", digitalRead(PIN_EPD_BUSY));
     epdReset();
     epdWaitBusy();
@@ -229,7 +374,9 @@ void epdInit() {
 // 0x6E = ~1.5s refresh, 0x5A = ~1s refresh.
 
 void epdInitFast() {
-#if defined(EPD_PANEL_42_DKE_RY683)
+#if defined(EPD_PANEL_398_SE0398NZ07_FNG_A0)
+    epdInit();
+#elif defined(EPD_PANEL_42_DKE_RY683)
     epdInit();
 #elif defined(EPD_PANEL_42_GDEM042F52)
     delay(100);
@@ -410,7 +557,7 @@ static void epdSend2bppAndRefresh(const uint8_t *buf2bpp) {
 }
 
 void epdDisplay(const uint8_t *image) {
-#if defined(EPD_PANEL_42_DKE_RY683) || defined(EPD_PANEL_42_GDEM042F52)
+#if defined(EPD_PANEL_398_SE0398NZ07_FNG_A0) || defined(EPD_PANEL_42_DKE_RY683) || defined(EPD_PANEL_42_GDEM042F52)
     if (!ensureColorBuf()) { Serial.println("[EPD] colorBuf alloc failed"); return; }
     int rowBytes = W / 8;
     int out = 0;
@@ -419,7 +566,11 @@ void epdDisplay(const uint8_t *image) {
             colorBuf[out++] = packMonoPixelGroup(image, rowBytes, y, x);
         }
     }
+#if defined(EPD_PANEL_398_SE0398NZ07_FNG_A0)
+    epdA0Display2bpp(colorBuf);
+#else
     epdSend2bppAndRefresh(colorBuf);
+#endif
 #else
     epdInit();
 
@@ -443,7 +594,9 @@ void epdDisplay(const uint8_t *image) {
 }
 
 void epdDisplay2bpp(const uint8_t *image2bpp) {
-#if defined(EPD_PANEL_42_DKE_RY683) || defined(EPD_PANEL_42_GDEM042F52)
+#if defined(EPD_PANEL_398_SE0398NZ07_FNG_A0)
+    epdA0Display2bpp(image2bpp);
+#elif defined(EPD_PANEL_42_DKE_RY683) || defined(EPD_PANEL_42_GDEM042F52)
     epdSend2bppAndRefresh(image2bpp);
 #else
     (void)image2bpp;
@@ -456,7 +609,7 @@ void epdDisplay2bpp(const uint8_t *image2bpp) {
 // 4-color panels: falls back to epdDisplay (no register-level deep clear).
 
 void epdDisplayDeepClear(const uint8_t *image) {
-#if defined(EPD_PANEL_42_DKE_RY683) || defined(EPD_PANEL_42_GDEM042F52)
+#if defined(EPD_PANEL_398_SE0398NZ07_FNG_A0) || defined(EPD_PANEL_42_DKE_RY683) || defined(EPD_PANEL_42_GDEM042F52)
     epdDisplay(image);
 #else
     epdInit();
@@ -500,7 +653,9 @@ void epdDisplayDeepClear(const uint8_t *image) {
 // ── EPD full-screen display (fast refresh, 0xC7) ────────────
 
 void epdDisplayFast(const uint8_t *image) {
-#if defined(EPD_PANEL_42_GDEM042F52)
+#if defined(EPD_PANEL_398_SE0398NZ07_FNG_A0)
+    epdDisplay(image);
+#elif defined(EPD_PANEL_42_GDEM042F52)
     if (!ensureColorBuf()) { Serial.println("[EPD] colorBuf alloc failed"); return; }
     int rowBytes = W / 8;
     int out = 0;
@@ -546,7 +701,7 @@ void epdPartialDisplay(uint8_t *data, int xStart, int yStart, int xEnd, int yEnd
 }
 
 bool epdSupportsPartialRefresh() {
-#if defined(EPD_PANEL_42_DKE_RY683) || defined(EPD_PANEL_42_GDEM042F52)
+#if defined(EPD_PANEL_398_SE0398NZ07_FNG_A0) || defined(EPD_PANEL_42_DKE_RY683) || defined(EPD_PANEL_42_GDEM042F52)
     return false;
 #else
     return true;
@@ -554,7 +709,7 @@ bool epdSupportsPartialRefresh() {
 }
 
 void epdPartialDisplayWithOld(uint8_t *data, const uint8_t *oldData, int xStart, int yStart, int xEnd, int yEnd) {
-#if defined(EPD_PANEL_42_DKE_RY683) || defined(EPD_PANEL_42_GDEM042F52)
+#if defined(EPD_PANEL_398_SE0398NZ07_FNG_A0) || defined(EPD_PANEL_42_DKE_RY683) || defined(EPD_PANEL_42_GDEM042F52)
     (void)data;
     (void)oldData;
     (void)xStart;
@@ -622,7 +777,11 @@ void epdPartialDisplayWithOld(uint8_t *data, const uint8_t *oldData, int xStart,
 // ── EPD sleep ───────────────────────────────────────────────
 
 void epdSleep() {
-#if defined(EPD_PANEL_42_DKE_RY683) || defined(EPD_PANEL_42_GDEM042F52)
+#if defined(EPD_PANEL_398_SE0398NZ07_FNG_A0)
+    const uint8_t checkCode = 0xA5;
+    epdA0Command(0x07, &checkCode, 1);
+    delay(200);
+#elif defined(EPD_PANEL_42_DKE_RY683) || defined(EPD_PANEL_42_GDEM042F52)
     epdSendCommand(0x07);
     epdSendData(0xA5);
     delay(200);

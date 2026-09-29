@@ -86,6 +86,7 @@
 // Default for 4.2" E-Paper (400x300, 1-bit).
 // Override via build flags: -D EPD_WIDTH=800 -D EPD_HEIGHT=480
 // Supported configurations:
+//   3.98" (768x552, 4-color SE0398NZ07-FNG-A0)
 //   4.2"  (400x300) - default
 //   2.9"  (296x128)
 //   5.83" (648x480)

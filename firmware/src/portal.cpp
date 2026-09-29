@@ -117,8 +117,21 @@ static bool connectPortalWiFi(const String &ssid, const String &pass) {
     wifiConnecting = true;
     lastWifiError  = "";
 
-    WiFi.mode(WIFI_AP_STA);
-    WiFi.begin(ssid.c_str(), pass.c_str());
+    // scanNetworks() retains its result list until scanDelete().  Release it
+    // before WPA starts, especially important for large color-panel builds.
+    WiFi.scanDelete();
+    Serial.printf("[PORTAL] Free heap before association: %u\n",
+                  (unsigned)ESP.getFreeHeap());
+
+    if (!WiFi.mode(WIFI_AP_STA)) {
+        Serial.println("[PORTAL] Failed to enter AP+STA mode");
+        wifiConnecting = false;
+        lastWifiError = "WIFI_INIT";
+        return false;
+    }
+    delay(100);
+    wl_status_t beginStatus = WiFi.begin(ssid.c_str(), pass.c_str());
+    Serial.printf("[PORTAL] WiFi.begin status=%d\n", (int)beginStatus);
 
     unsigned long t0 = millis();
     while (WiFi.status() != WL_CONNECTED && millis() - t0 < (unsigned long)WIFI_TIMEOUT) {
@@ -199,7 +212,11 @@ void startCaptivePortal() {
 
     // ── Route: Portal home page ─────────────────────────────
     webServer.on("/", HTTP_GET, []() {
-        webServer.send(200, "text/html", PORTAL_HTML);
+        // PORTAL_HTML is a large PROGMEM array.  The regular send() overload
+        // first copies const char* into an Arduino String, which can fail for
+        // this ~34 KB page on memory-constrained ESP32 builds.  Stream it
+        // directly from flash instead.
+        webServer.send_P(200, PSTR("text/html"), PORTAL_HTML);
     });
 
     // ── Route: WiFi network scan ────────────────────────────
@@ -247,6 +264,8 @@ void startCaptivePortal() {
         }
         json += "]}";
 
+        // The scan result list is no longer needed after JSON is built.
+        WiFi.scanDelete();
         webServer.sendHeader("Access-Control-Allow-Origin", "*");
         webServer.send(200, "application/json", json);
         Serial.printf("Scan response sent (%d unique networks)\n", count);
