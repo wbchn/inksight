@@ -36,7 +36,45 @@
 
 - PlatformIO
 
-## 4. 后端启动
+## 4. Docker Compose 部署
+
+在仓库根目录执行：
+
+```bash
+cp backend/.env.example backend/.env
+```
+
+编辑 `backend/.env`，按需填写模型 API Key，并设置 `ADMIN_TOKEN`。局域网部署时还需填写（将 IP 换为 Docker 宿主机的局域网地址）：
+
+```env
+INKSIGHT_ALLOWED_HOSTS=backend,192.168.1.100
+INKSIGHT_CORS_ORIGINS=http://192.168.1.100:3000
+INKSIGHT_WEB_BASE_URL=http://192.168.1.100:3000
+```
+
+启动并检查：
+
+```bash
+docker compose up -d --build
+docker compose ps
+curl http://192.168.1.100:8080/api/health
+```
+
+WebApp 地址为 `http://192.168.1.100:3000`。设备连接 `InkSight-XXXX` 热点后，在 `http://192.168.4.1` 的自定义服务器选项填写 `http://192.168.1.100:8080`，不要附加 `/api`。配网完成后，手动打开 `http://192.168.1.100:3000/claim?code=配对码` 完成设备认领；当前固件的自定义服务器模式会尝试跳转到 `localhost:3000`。
+
+Compose 使用 `backend_data` 保存 SQLite 数据库和登录签名密钥，`backend_uploads` 保存上传文件，`backend_modes` 保存文件型自定义模式，`backend_vocab` 保存词库。重建容器不会清空这些卷；备份时需要包含这些卷。需要额外英文词库时，执行 `docker compose exec backend python scripts/import_kylebing_vocab.py`，然后运行 `docker compose restart backend` 导入数据库。`INKSIGHT_DATA_DIR` 是实际数据库目录，旧版 `DB_PATH` 配置项不生效。查看日志可用 `docker compose logs -f backend web`。
+
+公网部署建议由 Caddy/Nginx 提供统一的 HTTPS 域名，并将所有请求转发到 WebApp `3000`；WebApp 会把其未处理的 `/api/*` 请求转发给后端。这样在线刷机等 WebApp 自有 API 也能正常工作。同时将 `INKSIGHT_ALLOWED_HOSTS` 设置为 `backend,你的域名`、`INKSIGHT_CORS_ORIGINS` 和 `INKSIGHT_WEB_BASE_URL` 都设置为该 HTTPS 域名，配网时填写该域名（不附加 `/api`）。公网环境应限制后端 `8080` 端口只在内网可访问。固件当前信任 Let's Encrypt 的 ISRG Root X1；其他 CA 或自签名证书需要更新固件信任链。
+
+镜像构建默认通过华为云镜像获取 Debian 系统包、PyPI 包和 npm 包。仓库已包含后端字体和基础词库；WebApp 的 `next/font` 仍需从 Google Fonts 获取字体。华为云 SWR 上已核实的 Python/Node 基础镜像目前仅有 `amd64` 版本，因此默认保留支持多架构的官方基础镜像。`amd64` 主机如需基础镜像也走华为云，可运行：
+
+```bash
+INKSIGHT_PYTHON_BASE_IMAGE=swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/library/python:3.11-slim \
+INKSIGHT_NODE_BASE_IMAGE=swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/library/node:20-bookworm-slim \
+docker compose up -d --build
+```
+
+## 5. 后端启动
 
 ```bash
 cd backend
@@ -70,7 +108,7 @@ python -m uvicorn api.index:app --host 0.0.0.0 --port 8080
 - 如果用户没有在个人信息页配置自己的模型与 API Key，后端会回退到环境变量中的平台级 Key。
 - `DEFAULT_CITY` 是系统级天气默认城市，默认为 `杭州`。
 
-## 5. WebApp 启动
+## 6. WebApp 启动
 
 ```bash
 cd webapp
@@ -94,7 +132,7 @@ npm run dev
 - 后端：`http://127.0.0.1:8080`
 - 前端：`http://127.0.0.1:3000`
 
-## 6 移动端（Expo）启动
+## 7. 移动端（Expo）启动
 
 移动端工程位于：`inksight-mobile/`，使用 Expo（`expo-router`）开发。
 
@@ -162,7 +200,7 @@ npx expo start --web --port 19006
 - 该变量只影响移动端向后端发起的 HTTP 请求（例如 `${EXPO_PUBLIC_INKSIGHT_API_BASE}/api/...`）。
 - 它**不会决定** Expo/Metro/Web 开发服务监听的端口；Expo dev server 端口由 `expo start` 的 `--port` 控制（默认 8081）。
 
-## 6. 本地入口
+## 8. 本地入口
 
 启动完成后，通常使用以下入口：
 
@@ -174,7 +212,7 @@ npx expo start --web --port 19006
 
 后端仍保留一些兼容页面（如旧版配置页、仪表盘、编辑器），但当前推荐统一从 WebApp 的**设备配置页**进入配置流程。
 
-## 7. 账号、模型与 API Key
+## 9. 账号、模型与 API Key
 
 当前代码中：
 
@@ -190,7 +228,7 @@ npx expo start --web --port 19006
 
 也就是说，**模型与 API Key 配置不在设备配置页，而在个人信息页**。
 
-## 8. 固件本地编译（可选）
+## 10. 固件本地编译（可选）
 
 如果你需要本地编译或烧录固件：
 
@@ -210,7 +248,7 @@ pio device monitor
 - `firmware/platformio.ini`
 - `docs/hardware.md`
 
-## 9. 常用检查命令
+## 11. 常用检查命令
 
 ### 后端
 
@@ -227,7 +265,7 @@ npm run lint
 npx tsc --noEmit
 ```
 
-## 10. 常见问题
+## 12. 常见问题
 
 ### 字体下载 / Next.js 构建问题
 

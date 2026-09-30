@@ -22,9 +22,7 @@ if DISABLE_CACHE:
 if DISABLE_BATCH_REGEN:
     logger.warning("[EXP] Batch regeneration is DISABLED via INKSIGHT_DISABLE_BATCH_REGEN")
 
-from .db import get_cache_db
-
-_CACHE_DB_PATH = os.path.join(os.path.dirname(__file__), "..", "cache.db")
+from .db import _CACHE_DB_PATH, get_cache_db
 
 
 async def init_cache_db():

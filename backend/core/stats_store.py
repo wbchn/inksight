@@ -6,7 +6,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import os
 import logging
 import aiosqlite
 from datetime import datetime
@@ -14,9 +13,9 @@ from typing import Any, Optional, Union
 
 logger = logging.getLogger(__name__)
 
-from .db import get_main_db
+from .db import _MAIN_DB_PATH, get_main_db
 
-DB_PATH = os.path.join(os.path.dirname(__file__), "..", "inksight.db")
+DB_PATH = _MAIN_DB_PATH
 
 
 async def init_stats_db():

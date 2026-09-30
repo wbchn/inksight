@@ -19,6 +19,7 @@ import jwt
 from fastapi import Cookie, Header, HTTPException, Request, Response
 
 from .config_store import validate_device_token, get_device_state
+from .db import _DB_DIR
 from .i18n import detect_lang_from_request, msg, normalize_lang
 
 logger = logging.getLogger(__name__)
@@ -27,7 +28,7 @@ def _load_jwt_secret() -> str:
     env = os.environ.get("JWT_SECRET")
     if env:
         return env
-    secret_file = os.path.join(os.path.dirname(__file__), "..", ".jwt_secret")
+    secret_file = os.path.join(_DB_DIR, ".jwt_secret")
     try:
         with open(secret_file, "r") as f:
             return f.read().strip()

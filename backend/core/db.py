@@ -12,7 +12,9 @@ import aiosqlite
 
 logger = logging.getLogger(__name__)
 
-_DB_DIR = os.path.join(os.path.dirname(__file__), "..")
+_DB_DIR = os.path.abspath(
+    os.getenv("INKSIGHT_DATA_DIR") or os.path.join(os.path.dirname(__file__), "..")
+)
 _MAIN_DB_PATH = os.path.join(_DB_DIR, "inksight.db")
 _CACHE_DB_PATH = os.path.join(_DB_DIR, "cache.db")
 _live_connections: "weakref.WeakSet[_ManagedConnection]" = weakref.WeakSet()

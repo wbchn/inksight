@@ -1,0 +1,43 @@
+services:
+  backend:
+    build:
+      context: ./backend
+      args:
+        PYTHON_BASE_IMAGE: ${INKSIGHT_PYTHON_BASE_IMAGE:-python:3.11-slim-bookworm}
+    env_file: ./backend/.env
+    environment:
+      INKSIGHT_DATA_DIR: /data
+    ports:
+      - "8080:8080"
+    volumes:
+      - backend_data:/data
+      - backend_uploads:/app/runtime_uploads
+      - backend_modes:/app/core/modes/custom
+      - backend_vocab:/app/core/vocab_data
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/api/health', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    restart: unless-stopped
+
+  web:
+    build:
+      context: ./webapp
+      args:
+        NODE_BASE_IMAGE: ${INKSIGHT_NODE_BASE_IMAGE:-node:20-bookworm-slim}
+    environment:
+      INKSIGHT_BACKEND_API_BASE: http://backend:8080
+    ports:
+      - "3000:3000"
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  backend_data:
+  backend_uploads:
+  backend_modes:
+  backend_vocab:
