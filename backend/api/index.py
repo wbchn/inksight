@@ -4,9 +4,10 @@ import logging
 import os
 from urllib.parse import urlsplit
 
+from core.errors import InkSightError
 from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
@@ -18,7 +19,6 @@ from api.shared import (
     lifespan,
     limiter,
 )
-from core.errors import InkSightError
 
 
 def _build_allowed_hosts() -> list[str]:

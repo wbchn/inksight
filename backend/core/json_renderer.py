@@ -16,28 +16,31 @@ import httpx
 from PIL import Image, ImageDraw, UnidentifiedImageError
 
 from .config import (
-    SCREEN_WIDTH, SCREEN_HEIGHT,
-    EINK_4COLOR_PALETTE, EINK_COLOR_NAME_MAP, EINK_COLOR_AVAILABILITY,
+    EINK_4COLOR_PALETTE,
+    EINK_COLOR_AVAILABILITY,
+    EINK_COLOR_NAME_MAP,
+    SCREEN_HEIGHT,
+    SCREEN_WIDTH,
 )
+from .image_processing import convert_image_block
+from .layout_presets import expand_layout_presets
+from .mode_catalog import builtin_catalog_map
 from .patterns.utils import (
     EINK_BG,
     EINK_FG,
     apply_text_fontmode,
-    draw_status_bar,
-    draw_footer,
     draw_dashed_line,
+    draw_footer,
+    draw_status_bar,
+    has_cjk,
     load_font,
     load_font_by_name,
-    paste_icon_onto,
     load_icon,
+    paste_icon_onto,
+    safe_font_bbox,
     wrap_text,
     wrap_text_fill_sidebar,
-    has_cjk,
-    safe_font_bbox,
 )
-from .layout_presets import expand_layout_presets
-from .mode_catalog import builtin_catalog_map
-from .image_processing import convert_image_block
 
 logger = logging.getLogger(__name__)
 
@@ -236,7 +239,7 @@ class ComponentNode:
     kind: str
     props: dict
     content: dict
-    children: list["ComponentNode"] = field(default_factory=list)
+    children: list[ComponentNode] = field(default_factory=list)
     box: ComponentBox | None = None
     measured_width: int = 0
     measured_height: int = 0
@@ -487,7 +490,7 @@ def _measure_component_big_number(node: ComponentNode, theme: dict, scale: float
     unit = str(node.props.get("unit", "") or "")
     if unit:
         text = f"{text}{unit}"
-    font, font_size = _component_load_font(node, text, theme, scale, "noto_serif_bold", 42)
+    font, _font_size = _component_load_font(node, text, theme, scale, "noto_serif_bold", 42)
     bbox = font.getbbox(text)
     node.measured_width = max(0, bbox[2] - bbox[0])
     node.measured_height = max(0, bbox[3] - bbox[1])
@@ -1272,31 +1275,29 @@ def render_json_mode(
     else:
         status_bar_bottom = int(screen_h * status_bar_pct)
 
-    _dsb_kw: dict[str, Any] = dict(
-        draw=draw,
-        img=img,
-        date_str=date_str,
-        weather_str=weather_str,
-        battery_pct=int(battery_pct),
-        weather_code=weather_code,
-        line_width=sb.get("line_width", 1),
-        dashed=sb.get("dashed", False),
-        time_str=time_str,
-        screen_w=screen_w,
-        screen_h=screen_h,
-        colors=colors,
-        language=language,
-    )
+    _dsb_kw: dict[str, Any] = {
+        "draw": draw,
+        "img": img,
+        "date_str": date_str,
+        "weather_str": weather_str,
+        "battery_pct": int(battery_pct),
+        "weather_code": weather_code,
+        "line_width": sb.get("line_width", 1),
+        "dashed": sb.get("dashed", False),
+        "time_str": time_str,
+        "screen_w": screen_w,
+        "screen_h": screen_h,
+        "colors": colors,
+        "language": language,
+    }
     if screen_h <= 128:
         _dsb_kw["separator_y"] = status_bar_bottom
     draw_status_bar(**_dsb_kw)
 
     scale = screen_w / 400.0
-    if scale < 0.92:
-        scale = 0.92
+    scale = max(scale, 0.92)
     min_scale = min(scale, screen_h / 300.0)
-    if min_scale < 0.65:
-        min_scale = 0.65
+    min_scale = max(min_scale, 0.65)
     footer_height = int(ft_layout.get("height", 30) * min_scale)
     # 2.9"（128px 高等）：页脚要容纳图标 + 左右文案，缩放后仍须足够高度，否则会贴底
     if screen_h <= 128:
@@ -1751,7 +1752,7 @@ def _render_spacer(ctx: RenderContext, block: dict) -> None:
         h = float(block.get("height", 12))
     except (TypeError, ValueError):
         h = 12.0
-    ctx.y += max(0, int(round(h * ctx.scale)))
+    ctx.y += max(0, round(h * ctx.scale))
 
 
 def _render_rating_choices(ctx: RenderContext, block: dict) -> None:
@@ -2098,7 +2099,7 @@ def _render_temp_chart(ctx: RenderContext, block: dict) -> None:
         ctx.draw.ellipse([xl - r, yl - r, xl + r, yl + r], outline=EINK_FG, width=1)
 
         # 最高温数字（在图顶上方）
-        temp_text_high = str(int(round(h_temp)))
+        temp_text_high = str(round(h_temp))
         hbbox = font.getbbox(temp_text_high)
         htw = hbbox[2] - hbbox[0]
         hth = hbbox[3] - hbbox[1]
@@ -2191,8 +2192,8 @@ def _render_forecast_cards(ctx: RenderContext, block: dict) -> None:
         temp_label = ""
         if temp_min_raw is not None and temp_max_raw is not None:
             try:
-                tmin = int(round(_num(temp_min_raw)))
-                tmax = int(round(_num(temp_max_raw)))
+                tmin = round(_num(temp_min_raw))
+                tmax = round(_num(temp_max_raw))
                 temp_label = f"{tmin}/{tmax}°"
             except (TypeError, ValueError):
                 temp_label = ""
@@ -2986,8 +2987,8 @@ def _render_timetable_weekly(ctx: RenderContext, block: dict) -> None:
     font_size = int(block.get("font_size", 11) * ctx.scale)
     header_font_size = int(block.get("header_font_size", font_size) * ctx.scale) if block.get("header_font_size") else font_size
     font_key = _pick_cjk_font(block.get("font", "noto_serif_regular"))
-    font = load_font(font_key, font_size)
-    sub_font = load_font(font_key, max(8, font_size - 2))
+    load_font(font_key, font_size)
+    load_font(font_key, max(8, font_size - 2))
     header_font = load_font(font_key, header_font_size)
     period_font = load_font(font_key, max(8, font_size - 2))
 
@@ -3047,9 +3048,7 @@ def _render_timetable_weekly(ctx: RenderContext, block: dict) -> None:
                 h = int(p_label.split("-")[0].strip().split(":")[0])
                 if pi > 0:
                     prev_h = int(periods[pi - 1].split("-")[0].strip().split(":")[0])
-                    if prev_h < 12 <= h:
-                        sep_indices.add(pi)
-                    elif prev_h < 18 <= h:
+                    if prev_h < 12 <= h or prev_h < 18 <= h:
                         sep_indices.add(pi)
             except (ValueError, IndexError):
                 pass
@@ -3082,13 +3081,7 @@ def _render_timetable_weekly(ctx: RenderContext, block: dict) -> None:
             highlight_col = (not has_time_range and di == current_day)
             highlight_today_course_bw = (ctx.colors < 3 and di == current_day and bool(cell_text))
 
-            if is_current_cell or highlight_today_course_bw:
-                ctx.draw.rectangle(
-                    [cell_x + 1, ctx.y, cell_x + day_col_w - 1, ctx.y + row_h - 1],
-                    fill=highlight_color if ctx.colors >= 3 else EINK_FG,
-                )
-                text_color = current_text_color
-            elif highlight_col:
+            if is_current_cell or highlight_today_course_bw or highlight_col:
                 ctx.draw.rectangle(
                     [cell_x + 1, ctx.y, cell_x + day_col_w - 1, ctx.y + row_h - 1],
                     fill=highlight_color if ctx.colors >= 3 else EINK_FG,

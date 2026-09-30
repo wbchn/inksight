@@ -9,17 +9,18 @@ STOIC, ROAST, ZEN, FITNESS, POETRY 已迁移至 JSON 渲染引擎 (json_renderer
 from __future__ import annotations
 
 import io
+
 from PIL import Image
 
-from .config import SCREEN_WIDTH, SCREEN_HEIGHT
+from .config import SCREEN_HEIGHT, SCREEN_WIDTH
 from .patterns import render_error
 
 __all__ = [
-    "render_error",
-    "render_mode",
     "image_to_bmp_bytes",
     "image_to_png_bytes",
     "image_to_raw_2bpp",
+    "render_error",
+    "render_mode",
 ]
 
 

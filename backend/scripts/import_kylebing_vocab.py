@@ -7,7 +7,6 @@ import urllib.request
 from pathlib import Path
 from typing import Any
 
-
 RAW_BASE = "https://raw.githubusercontent.com/KyleBing/english-vocabulary/master/json_original/json-sentence"
 OUT_DIR = Path(__file__).resolve().parents[1] / "core" / "vocab_data"
 

@@ -13,12 +13,11 @@ import os
 import re
 import secrets
 from datetime import datetime, timedelta, timezone
-from typing import Optional
 
 import jwt
 from fastapi import Cookie, Header, HTTPException, Request, Response
 
-from .config_store import validate_device_token, get_device_state
+from .config_store import get_device_state, validate_device_token
 from .db import _DB_DIR
 from .i18n import detect_lang_from_request, msg, normalize_lang
 
@@ -56,7 +55,7 @@ def validate_mac_param(mac: str, lang: str = "zh") -> str:
     return mac.upper()
 
 
-def is_admin_authorized(authorization: Optional[str]) -> bool:
+def is_admin_authorized(authorization: str | None) -> bool:
     admin_token = os.environ.get("ADMIN_TOKEN")
     if not admin_token:
         return False
@@ -70,8 +69,8 @@ def is_admin_authorized(authorization: Optional[str]) -> bool:
 
 
 def require_admin(
-    authorization: Optional[str] = Header(default=None),
-    accept_language: Optional[str] = Header(default=None, alias="Accept-Language"),
+    authorization: str | None = Header(default=None),
+    accept_language: str | None = Header(default=None, alias="Accept-Language"),
 ) -> None:
     """FastAPI 依赖：管理端点鉴权。"""
     if not is_admin_authorized(authorization):
@@ -80,8 +79,8 @@ def require_admin(
 
 async def require_device_token(
     mac: str,
-    x_device_token: Optional[str] = Header(default=None),
-    accept_language: Optional[str] = Header(default=None, alias="Accept-Language"),
+    x_device_token: str | None = Header(default=None),
+    accept_language: str | None = Header(default=None, alias="Accept-Language"),
 ) -> bool:
     lang = normalize_lang(accept_language)
     if x_device_token:
@@ -105,7 +104,7 @@ def create_session_token(user_id: int, username: str) -> str:
     return jwt.encode(payload, _JWT_SECRET, algorithm=_JWT_ALGORITHM)
 
 
-def decode_session_token(token: str) -> Optional[dict]:
+def decode_session_token(token: str) -> dict | None:
     """Decode JWT session token.
     
     Returns:
@@ -114,10 +113,10 @@ def decode_session_token(token: str) -> Optional[dict]:
     try:
         return jwt.decode(token, _JWT_SECRET, algorithms=[_JWT_ALGORITHM])
     except jwt.ExpiredSignatureError:
-        logger.warning(f"[AUTH] decode_session_token: Token expired")
+        logger.warning("[AUTH] decode_session_token: Token expired")
         return None
     except jwt.InvalidSignatureError:
-        logger.warning(f"[AUTH] decode_session_token: Invalid signature (secret mismatch?)")
+        logger.warning("[AUTH] decode_session_token: Invalid signature (secret mismatch?)")
         return None
     except jwt.DecodeError as e:
         logger.warning(f"[AUTH] decode_session_token: Decode error: {e}")
@@ -143,9 +142,9 @@ def clear_session_cookie(response: Response):
 
 
 def _extract_user(
-    ink_session: Optional[str],
+    ink_session: str | None,
     request: Request,
-) -> Optional[dict]:
+) -> dict | None:
     """Extract user payload from cookie or authorization header."""
     sources = []
     if ink_session:
@@ -175,7 +174,7 @@ def _extract_user(
 
 async def require_user(
     request: Request,
-    ink_session: Optional[str] = Cookie(default=None),
+    ink_session: str | None = Cookie(default=None),
 ) -> int:
     payload = _extract_user(ink_session, request)
     if not payload:
@@ -185,16 +184,16 @@ async def require_user(
 
 async def optional_user(
     request: Request,
-    ink_session: Optional[str] = Cookie(default=None),
-) -> Optional[int]:
+    ink_session: str | None = Cookie(default=None),
+) -> int | None:
     payload = _extract_user(ink_session, request)
     return int(payload["sub"]) if payload else None
 
 
 async def get_current_user_optional(
     request: Request,
-    ink_session: Optional[str] = Cookie(default=None),
-) -> Optional[dict]:
+    ink_session: str | None = Cookie(default=None),
+) -> dict | None:
     """FastAPI 依赖：可选获取当前用户信息（包含 user_id 和 role）。
     
     尝试解析 Token（Cookie 或 Header），如果无效则返回 None，不抛出异常。
@@ -210,7 +209,7 @@ async def get_current_user_optional(
     
     payload = _extract_user(ink_session, request)
     if not payload:
-        logger.warning(f"[AUTH] get_current_user_optional: No payload extracted")
+        logger.warning("[AUTH] get_current_user_optional: No payload extracted")
         return None
     
     try:
@@ -241,7 +240,7 @@ async def get_current_user_optional(
 
 async def get_current_root_user(
     request: Request,
-    ink_session: Optional[str] = Cookie(default=None),
+    ink_session: str | None = Cookie(default=None),
 ) -> int:
     """FastAPI 依赖：要求当前用户必须是 root 角色（仅用于纯 API 接口拦截）。
     

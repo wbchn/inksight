@@ -1,14 +1,13 @@
 from __future__ import annotations
 
-import pytest
-from httpx import AsyncClient
 from unittest.mock import patch
 
+import pytest
 from api.index import app
-from core.config_store import get_device_state
-from core.config_store import init_db
+from core.config_store import get_device_state, init_db
 from core.db import get_main_db
 from core.vocab_store import get_vocab_content, handle_vocab_event
+from httpx import AsyncClient
 
 
 @pytest.fixture

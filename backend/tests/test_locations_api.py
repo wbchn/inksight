@@ -1,8 +1,8 @@
-import pytest
-from httpx import AsyncClient
 from unittest.mock import AsyncMock, patch
 
+import pytest
 from api.index import app
+from httpx import AsyncClient
 
 
 @pytest.mark.asyncio

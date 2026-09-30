@@ -13,7 +13,6 @@ import string
 import time
 from email.mime.text import MIMEText
 from functools import lru_cache
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 

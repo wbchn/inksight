@@ -2,7 +2,7 @@
 from unittest.mock import patch
 
 import pytest
-from core.stats_store import init_stats_db, check_habit, get_habit_status, delete_habit
+from core.stats_store import check_habit, delete_habit, get_habit_status, init_stats_db
 
 
 @pytest.fixture(autouse=True)

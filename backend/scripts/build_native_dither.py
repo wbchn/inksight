@@ -4,7 +4,6 @@ import shutil
 import subprocess
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "core" / "native" / "eink_dither.cpp"
 OUT = ROOT / "core" / "native" / "libeink_dither.so"

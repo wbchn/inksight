@@ -9,9 +9,16 @@ from unittest.mock import patch
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
+from core.config import SCREEN_HEIGHT as SCREEN_H
+from core.config import SCREEN_WIDTH as SCREEN_W
+from core.json_renderer import (
+    RenderContext,
+    _component_aligned_y,
+    _localized_footer_attribution,
+    _localized_footer_label,
+    render_json_mode,
+)
 from PIL import Image
-from core.json_renderer import render_json_mode, RenderContext, _localized_footer_label, _localized_footer_attribution, _component_aligned_y
-from core.config import SCREEN_WIDTH as SCREEN_W, SCREEN_HEIGHT as SCREEN_H
 
 
 def _make_mode_def(body_blocks, content_type="static", footer=None):

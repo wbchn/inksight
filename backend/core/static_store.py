@@ -12,9 +12,6 @@ from __future__ import annotations
 import json
 import logging
 from datetime import date
-from typing import Optional
-
-import aiosqlite
 
 from .db import get_main_db
 
@@ -213,7 +210,7 @@ async def set_thisday_state(mac: str, index: int, count: int) -> None:
 # ── 游标法查询（海量随机模式）───────────────────────────────
 
 
-async def fetch_next_poetry(mac: str) -> Optional[dict]:
+async def fetch_next_poetry(mac: str) -> dict | None:
     """游标法获取下一首诗词。cursor = 上次展示的 id，找到 > cursor 的第一条。
     
     新设备（cursor=0）会从随机位置开始轮询，避免不同设备展示相同内容。
@@ -264,7 +261,7 @@ async def fetch_next_poetry(mac: str) -> Optional[dict]:
     return None
 
 
-async def fetch_next_riddle(mac: str) -> Optional[dict]:
+async def fetch_next_riddle(mac: str) -> dict | None:
     """游标法获取下一条谜语。新设备从随机位置开始轮询。"""
     cursor_val = await get_static_cursor(mac, "RIDDLE")
     db = await get_main_db()
@@ -312,7 +309,7 @@ async def fetch_next_riddle(mac: str) -> Optional[dict]:
 # ── 轮询索引法查询（日期相关模式）────────────────────────────
 
 
-async def fetch_thisday_record(month: int, day: int, mac: str) -> Optional[dict]:
+async def fetch_thisday_record(month: int, day: int, mac: str) -> dict | None:
     """按月日查询历史上的今天记录，使用设备级轮询索引展示不同记录。"""
     db = await get_main_db()
 
@@ -335,12 +332,12 @@ async def fetch_thisday_record(month: int, day: int, mac: str) -> Optional[dict]
     today_hash = hash(f"{today.month}-{today.day}")
 
     # 读取设备的当前索引
-    saved_index, saved_count, saved_date_hash = await get_thisday_state(mac)
+    saved_index, _saved_count, saved_date_hash = await get_thisday_state(mac)
 
     # 跨天重置索引（每天第一次访问时）
     if today_hash != saved_date_hash:
         saved_index = 0
-        saved_count = len(rows)
+        len(rows)
 
     count = len(rows)
     index = saved_index % count  # 安全取模
@@ -356,7 +353,7 @@ async def fetch_thisday_record(month: int, day: int, mac: str) -> Optional[dict]
 
 
 def _poetry_row_to_content(row: tuple) -> dict:
-    id_, title, author, dynasty, lines_json, note, season_tag = row
+    id_, title, author, _dynasty, lines_json, note, _season_tag = row
     try:
         lines = json.loads(lines_json)
     except (json.JSONDecodeError, TypeError):

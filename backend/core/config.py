@@ -295,7 +295,9 @@ HOLIDAY_NEXT_API_URL = "https://date.appworlds.cn/next"
 
 import os as _os
 from pathlib import Path as _Path
+
 from dotenv import load_dotenv as _load_dotenv
+
 _load_dotenv(_Path(__file__).resolve().parent.parent / ".env")
 
 # 解决 Windows 本地开发环境 SSL 证书验证失败问题
@@ -411,10 +413,9 @@ def get_cacheable_modes() -> set[str]:
         return {"STOIC", "ROAST", "ZEN", "DAILY"}
 
 
-from typing import Optional
 
 
-def get_default_llm_model_for_provider(provider: Optional[str]) -> str:
+def get_default_llm_model_for_provider(provider: str | None) -> str:
     """根据服务商返回默认模型名。
 
     - 百炼(aliyun)：默认 deepseek-v3.2（兼容模式）

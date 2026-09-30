@@ -4,7 +4,6 @@ import asyncio
 from unittest.mock import AsyncMock, patch
 
 import pytest
-
 from core import db as db_mod
 
 
@@ -61,7 +60,7 @@ async def test_get_main_db_recreates_state_for_new_event_loop():
     second._closed = False
     second.execute = AsyncMock(return_value=AsyncMock())
 
-    original_loop = asyncio.get_running_loop()
+    asyncio.get_running_loop()
 
     class OtherLoop:
         pass

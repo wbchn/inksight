@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import random
+from collections.abc import Callable
 from copy import deepcopy
 from dataclasses import dataclass
-from typing import Any, Callable
+from typing import Any
 
 
 class LayoutDslError(ValueError):
@@ -2660,17 +2661,10 @@ def _prop_input_type(name: str, value_kind: str) -> str:
     if value_kind == "template":
         return "textarea"
     if (
-        name.endswith("_size")
-        or name.endswith("_gap")
-        or name.endswith("_width")
-        or name.endswith("_height")
-        or name.endswith("_limit")
-        or name.endswith("_lines")
-        or name.endswith("_padding")
-        or name in {"gap", "grow", "inset_x", "padding_x", "padding_y", "row_gap", "divider_inset_x", "divider_margin_x", "quote_inset_x", "word_inset_x", "hero_inset_x", "top_gap"}
+        name.endswith(("_size", "_gap", "_width", "_height", "_limit", "_lines", "_padding")) or name in {"gap", "grow", "inset_x", "padding_x", "padding_y", "row_gap", "divider_inset_x", "divider_margin_x", "quote_inset_x", "word_inset_x", "hero_inset_x", "top_gap"}
     ):
         return "number"
-    if name == "justify" or name.endswith("_align") or name.endswith("_align_y") or name.endswith("_style") or name == "variant":
+    if name == "justify" or name.endswith(("_align", "_align_y", "_style")) or name == "variant":
         return "select"
     return "string"
 

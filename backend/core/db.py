@@ -17,7 +17,7 @@ _DB_DIR = os.path.abspath(
 )
 _MAIN_DB_PATH = os.path.join(_DB_DIR, "inksight.db")
 _CACHE_DB_PATH = os.path.join(_DB_DIR, "cache.db")
-_live_connections: "weakref.WeakSet[_ManagedConnection]" = weakref.WeakSet()
+_live_connections: weakref.WeakSet[_ManagedConnection] = weakref.WeakSet()
 
 
 @dataclass

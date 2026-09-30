@@ -2,18 +2,18 @@
 Unit tests for config_store (SQLite operations).
 Uses an in-memory DB by patching DB_PATH.
 """
-import pytest
 from unittest.mock import patch
 
+import pytest
 from core.config_store import (
-    init_db,
-    save_config,
-    get_active_config,
-    get_config_history,
     activate_config,
     create_claim_token,
+    get_active_config,
+    get_config_history,
     get_or_create_claim_token,
+    init_db,
     remove_mode_from_all_configs,
+    save_config,
 )
 
 
@@ -98,7 +98,7 @@ class TestConfigStore:
         data1 = {"modes": ["STOIC"], "refreshStrategy": "random"}
         data2 = {"modes": ["ZEN"], "refreshStrategy": "cycle"}
 
-        id1 = await save_config(mac, data1)
+        await save_config(mac, data1)
         id2 = await save_config(mac, data2)
 
         config = await get_active_config(mac)
@@ -126,7 +126,7 @@ class TestConfigStore:
         await init_db()
         mac = "AA:BB:CC:DD:EE:FF"
         id1 = await save_config(mac, {"modes": ["STOIC"], "refreshStrategy": "random"})
-        id2 = await save_config(mac, {"modes": ["ZEN"], "refreshStrategy": "cycle"})
+        await save_config(mac, {"modes": ["ZEN"], "refreshStrategy": "cycle"})
 
         # Activate the old one
         ok = await activate_config(mac, id1)

@@ -3,23 +3,22 @@ from __future__ import annotations
 import datetime
 import html
 import json
+import logging
 import os
 import re
 import xml.etree.ElementTree as ET
 
-import logging
 import httpx
 from openai import AsyncOpenAI, OpenAIError
 from tenacity import (
     retry,
+    retry_if_exception_type,
     stop_after_attempt,
     wait_exponential,
-    retry_if_exception_type,
-    before_sleep_log,
 )
 
+from .config import DEFAULT_LLM_MODEL, DEFAULT_LLM_PROVIDER
 from .errors import LLMKeyMissingError
-from .config import DEFAULT_LLM_PROVIDER, DEFAULT_LLM_MODEL
 
 logger = logging.getLogger(__name__)
 
@@ -145,15 +144,7 @@ def _sanitize_llm_json_substring_for_parse(s: str) -> str:
                 else:
                     i += 1
                 continue
-            elif ch == "\n":
-                out.append("\\n")
-                i += 1
-                continue
-            elif ch in "\u2028\u2029":
-                out.append("\\n")
-                i += 1
-                continue
-            elif ch == "\u0085":
+            elif ch == "\n" or ch in "\u2028\u2029" or ch == "\u0085":
                 out.append("\\n")
                 i += 1
                 continue
@@ -195,7 +186,7 @@ def _clean_json_response(text: str) -> str:
         cleaned = cleaned.replace('{{', '{').replace('}}', '}')
     # Fix single-quoted JSON keys/values: replace ' with " when used as JSON delimiters
     # Only if it looks like single-quoted JSON (starts with {')
-    if cleaned.startswith("{'") or cleaned.startswith("{ '"):
+    if cleaned.startswith(("{'", "{ '")):
         cleaned = re.sub(r"(?<=\{)\s*'|(?<=,)\s*'|'(?=\s*:)|(?<=:\s)'|'(?=\s*[,}])", '"', cleaned)
     return cleaned.strip()
 
@@ -676,7 +667,7 @@ async def fetch_ph_top_product() -> dict:
             logger.info(f"[PH] Fetched product: {product['name']}")
             return product
 
-    except (httpx.HTTPError, ET.ParseError) as e:
+    except (httpx.HTTPError, ET.ParseError):
         logger.exception("[PH] Error fetching Product Hunt product")
         return {}
 
@@ -1051,7 +1042,7 @@ Requirements:
         TypeError,
         ValueError,
         AttributeError,
-    ) as e:
+    ):
         logger.exception("[ARTWALL] Failed to generate artwall content")
         return {
             "artwork_title": artwork_title,
@@ -1140,7 +1131,7 @@ async def generate_recipe_content(
             "nutrition": data.get("nutrition", "蛋白质✓ 膳食纤维✓ 维生素C✓ 铁✓"),
         }
 
-    except _LLM_RECOVERABLE_ERRORS + (json.JSONDecodeError, TypeError) as e:
+    except _LLM_RECOVERABLE_ERRORS + (json.JSONDecodeError, TypeError):
         logger.exception("[RECIPE] Failed to generate recipe content")
         return {
             "season": season_map.get(month, f"{month}月"),

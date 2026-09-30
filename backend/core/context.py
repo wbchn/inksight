@@ -2,43 +2,43 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import random
 import re
 import time
-import httpx
-import random
-from json import JSONDecodeError
 from datetime import datetime
+from json import JSONDecodeError
 from typing import Any, Literal
 
+import httpx
 from tenacity import (
     retry,
+    retry_if_exception_type,
     stop_after_attempt,
     wait_exponential,
-    retry_if_exception_type,
 )
 from zhdate import ZhDate
 
 from .config import (
-    WEEKDAY_CN,
-    MONTH_CN,
-    SOLAR_FESTIVALS,
-    LUNAR_FESTIVALS,
-    IDIOMS,
-    POEMS,
+    _QWEATHER_ICON_TO_WMO,
     CITY_COORDINATES,
+    DEFAULT_CITY,
     DEFAULT_LATITUDE,
     DEFAULT_LONGITUDE,
-    OPEN_METEO_URL,
-    OPEN_METEO_GEOCODING_URL,
-    HOLIDAY_WORK_API_URL,
     HOLIDAY_NEXT_API_URL,
-    DEFAULT_CITY,
-    QWEATHER_API_KEY,
+    HOLIDAY_WORK_API_URL,
+    IDIOMS,
+    LUNAR_FESTIVALS,
+    MONTH_CN,
+    OPEN_METEO_GEOCODING_URL,
+    OPEN_METEO_URL,
+    POEMS,
     QWEATHER_API_HOST,
-    QWEATHER_PRIVATE_KEY,
+    QWEATHER_API_KEY,
     QWEATHER_CREDENTIAL_ID,
+    QWEATHER_PRIVATE_KEY,
     QWEATHER_PROJECT_ID,
-    _QWEATHER_ICON_TO_WMO,
+    SOLAR_FESTIVALS,
+    WEEKDAY_CN,
 )
 
 _context_cache: dict[str, tuple[Any, float]] = {}
@@ -131,8 +131,7 @@ def _normalize_place_name(name: str | None) -> str:
         return ""
     normalized = name.strip().replace(" ", "")
     for token in ("中国", "中华人民共和国"):
-        if normalized.startswith(token):
-            normalized = normalized[len(token):]
+        normalized = normalized.removeprefix(token)
     normalized = normalized.strip("·,-_/，、 ")
     for suffix in _LOCATION_SUFFIXES:
         if normalized.endswith(suffix) and len(normalized) > len(suffix):
@@ -841,7 +840,7 @@ async def get_upcoming_holiday(now: datetime) -> dict:
                 days_until = (holiday_date.date() - now.date()).days
 
                 return {
-                    "days_until": days_until if days_until > 0 else 0,
+                    "days_until": max(0, days_until),
                     "holiday_name": data.get("name", ""),
                     "date": holiday_date.strftime("%m月%d日"),
                     "holiday_duration": data.get("days", 0),
@@ -925,8 +924,9 @@ def _qweather_jwt() -> str | None:
     if not (QWEATHER_PRIVATE_KEY and QWEATHER_CREDENTIAL_ID and QWEATHER_PROJECT_ID):
         return None
     try:
-        import jwt as pyjwt
         import time
+
+        import jwt as pyjwt
         now = int(time.time())
         payload = {"sub": QWEATHER_PROJECT_ID, "iat": now - 30, "exp": now + 900}
         headers = {"kid": QWEATHER_CREDENTIAL_ID}
@@ -1079,7 +1079,7 @@ def _safe_int(value: Any) -> int | None:
     try:
         if value in ("", None):
             return None
-        return int(round(float(value)))
+        return round(float(value))
     except (TypeError, ValueError):
         return None
 
@@ -1181,28 +1181,9 @@ async def get_weather_forecast(
     params = {
         "latitude": lat,
         "longitude": lon,
-        "current": ",".join(
-            [
-                "temperature_2m",
-                "weather_code",
-                "relative_humidity_2m",
-                "wind_direction_10m",
-                "wind_speed_10m",
-            ]
-        ),
+        "current": "temperature_2m,weather_code,relative_humidity_2m,wind_direction_10m,wind_speed_10m",
         # 预报字段：温度、天气代码、湿度、主导风向、风速、日出日落时间
-        "daily": ",".join(
-            [
-                "temperature_2m_max",
-                "temperature_2m_min",
-                "weather_code",
-                "relative_humidity_2m_mean",
-                "winddirection_10m_dominant",
-                "windspeed_10m_max",
-                "sunrise",
-                "sunset",
-            ]
-        ),
+        "daily": "temperature_2m_max,temperature_2m_min,weather_code,relative_humidity_2m_mean,winddirection_10m_dominant,windspeed_10m_max,sunrise,sunset",
         "timezone": "auto",
         "forecast_days": days + 1,  # include today
     }
@@ -1296,7 +1277,7 @@ async def get_weather_forecast(
             today_humidity = str(current_humidity)
         elif humidities:
             try:
-                today_humidity = str(int(round(humidities[0])))
+                today_humidity = str(round(humidities[0]))
             except (TypeError, ValueError):
                 today_humidity = "--"
 
@@ -1333,7 +1314,7 @@ async def get_weather_forecast(
         if wind_speed_for_level is not None:
             try:
                 # 这里使用风速近似为等级（粗略）：m/s 四舍五入作为“几级”
-                level = max(1, min(12, int(round(float(wind_speed_for_level) / 2))))  # 简单映射
+                level = max(1, min(12, round(float(wind_speed_for_level) / 2)))  # 简单映射
                 today_wind_level = f"Lv {level}" if language == "en" else f"{level}级"
             except (TypeError, ValueError):
                 today_wind_level = ""

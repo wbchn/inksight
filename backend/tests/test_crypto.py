@@ -1,7 +1,7 @@
 """Tests for API key encryption utility."""
 import os
-import pytest
-from core.crypto import encrypt_api_key, decrypt_api_key
+
+from core.crypto import decrypt_api_key, encrypt_api_key
 
 
 def test_encrypt_decrypt_roundtrip():

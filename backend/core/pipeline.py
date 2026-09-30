@@ -5,19 +5,19 @@
 from __future__ import annotations
 
 import logging
-from PIL import Image
-
 from datetime import datetime
 
+from PIL import Image
+
 from .config import (
-    SCREEN_WIDTH,
-    SCREEN_HEIGHT,
-    DEFAULT_LLM_PROVIDER,
-    DEFAULT_LLM_MODEL,
-    DEFAULT_IMAGE_PROVIDER,
-    DEFAULT_IMAGE_MODEL,
-    DEFAULT_LANGUAGE,
     DEFAULT_CONTENT_TONE,
+    DEFAULT_IMAGE_MODEL,
+    DEFAULT_IMAGE_PROVIDER,
+    DEFAULT_LANGUAGE,
+    DEFAULT_LLM_MODEL,
+    DEFAULT_LLM_PROVIDER,
+    SCREEN_HEIGHT,
+    SCREEN_WIDTH,
 )
 
 WEEKDAY_EN_SHORT = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
@@ -247,7 +247,10 @@ async def _generate_content_for_persona(
             # Try to load from database if mode not in registry
             # This can happen for user-specific custom modes
             if mac:
-                from .config_store import get_device_owner, get_custom_mode as get_user_custom_mode_from_db
+                from .config_store import (
+                    get_custom_mode as get_user_custom_mode_from_db,
+                )
+                from .config_store import get_device_owner
                 owner = await get_device_owner(mac)
                 if owner:
                     user_id = owner.get("user_id")
@@ -309,9 +312,9 @@ async def _render_for_persona(
     language: str = "zh",
 ) -> Image.Image:
     """Dispatch rendering to the appropriate handler."""
+    from .json_renderer import render_json_mode
     from .mode_registry import get_registry
     from .renderer import render_mode
-    from .json_renderer import render_json_mode
 
     registry = get_registry()
 

@@ -2,13 +2,12 @@
 from __future__ import annotations
 
 import ctypes
+import platform
 from pathlib import Path
 
 from PIL import Image
 
 from .config import EINK_4COLOR_PALETTE
-
-import platform
 
 _EXT = ".dll" if platform.system() == "Windows" else ".so"
 _LIB_PATH = Path(__file__).resolve().parent / "native" / f"libeink_dither{_EXT}"

@@ -12,15 +12,14 @@ import time
 from contextlib import asynccontextmanager
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
 from urllib.parse import urlparse
 
 import httpx
+from core.patterns.utils import load_font
 from dotenv import load_dotenv
 from fastapi import HTTPException, Request
 from fastapi.responses import JSONResponse
-from PIL import Image, ImageDraw, ImageFont
-from core.patterns.utils import load_font
+from PIL import Image, ImageDraw
 
 try:  # pragma: no cover - exercised implicitly at import time
     from slowapi import Limiter, _rate_limit_exceeded_handler
@@ -65,9 +64,9 @@ from core.config import (
     DEFAULT_CITY,
     DEFAULT_MODES,
     DEFAULT_REFRESH_INTERVAL,
-    get_default_llm_model_for_provider,
 )
 from core.config_store import (
+    consume_user_free_quota,
     get_active_config,
     get_cycle_index,
     get_device_membership,
@@ -78,9 +77,13 @@ from core.config_store import (
     init_db,
     set_cycle_index,
     update_device_state,
-    consume_user_free_quota,
 )
-from core.context import calc_battery_pct, extract_location_settings, get_date_context, get_weather
+from core.context import (
+    calc_battery_pct,
+    extract_location_settings,
+    get_date_context,
+    get_weather,
+)
 from core.pipeline import generate_and_render, get_effective_mode_config
 from core.renderer import image_to_bmp_bytes
 from core.stats_store import (
@@ -169,14 +172,14 @@ def build_claim_url(request: Request, token: str) -> str:
     return f"{scheme}://{host}/claim?token={token}"
 
 
-async def resolve_user_id(request: Request, ink_session: Optional[str]) -> Optional[int]:
+async def resolve_user_id(request: Request, ink_session: str | None) -> int | None:
     return await optional_user(request, ink_session)
 
 
 async def require_membership_access(
     request: Request,
     mac: str,
-    ink_session: Optional[str],
+    ink_session: str | None,
     *,
     owner_only: bool = False,
 ) -> dict:
@@ -200,8 +203,8 @@ async def require_membership_access(
 async def ensure_web_or_device_access(
     request: Request,
     mac: str,
-    x_device_token: Optional[str],
-    ink_session: Optional[str],
+    x_device_token: str | None,
+    ink_session: str | None,
     *,
     owner_only: bool = False,
     allow_device_token: bool = True,
@@ -277,7 +280,7 @@ async def choose_persona_from_config(config: dict, peek_next: bool = False) -> s
     return random.choice(modes)
 
 
-async def advance_to_next_mode(mac: Optional[str], config: dict) -> str:
+async def advance_to_next_mode(mac: str | None, config: dict) -> str:
     modes = config.get("modes", DEFAULT_MODES)
     if not modes:
         return "STOIC"
@@ -291,7 +294,7 @@ async def advance_to_next_mode(mac: Optional[str], config: dict) -> str:
     return persona
 
 
-async def consume_pending_mode(mac: str) -> Optional[str]:
+async def consume_pending_mode(mac: str) -> str | None:
     try:
         state = await get_device_state(mac)
         if state and state.get("pending_mode"):
@@ -304,9 +307,9 @@ async def consume_pending_mode(mac: str) -> Optional[str]:
 
 
 async def resolve_mode(
-    mac: Optional[str],
-    config: Optional[dict],
-    persona_override: Optional[str],
+    mac: str | None,
+    config: dict | None,
+    persona_override: str | None,
     *,
     force_next: bool = False,
 ) -> str:
@@ -332,20 +335,20 @@ async def resolve_mode(
 
 async def build_image(
     v: float,
-    mac: Optional[str],
-    persona_override: Optional[str] = None,
+    mac: str | None,
+    persona_override: str | None = None,
     *,
     screen_w: int,
     screen_h: int,
     force_next: bool = False,
     skip_cache: bool = False,
-    preview_city_override: Optional[str] = None,
-    preview_mode_override: Optional[dict] = None,
-    preview_memo_text: Optional[str] = None,
-    preview_memo_settings: Optional[dict] = None,
-    preview_ui_language: Optional[str] = None,
-    current_user_id: Optional[int] = None,
-    user_api_key: Optional[str] = None,
+    preview_city_override: str | None = None,
+    preview_mode_override: dict | None = None,
+    preview_memo_text: str | None = None,
+    preview_memo_settings: dict | None = None,
+    preview_ui_language: str | None = None,
+    current_user_id: int | None = None,
+    user_api_key: str | None = None,
     intent_only: bool = False,
     colors: int = 2,
 ):
@@ -354,7 +357,7 @@ async def build_image(
     battery_pct = calc_battery_pct(v)
     config = await get_active_config(mac) if mac else None
     persona = await resolve_mode(mac, config, persona_override, force_next=force_next)
-    owner_user_id: Optional[int] = None
+    owner_user_id: int | None = None
     if mac:
         from core.config_store import get_device_owner
 
@@ -401,7 +404,7 @@ async def build_image(
     is_mode_cacheable = bool(mode_info.cacheable) if mode_info else True
 
     # ── 合入用户级别的 LLM / 图像 API 配置 ─────────────────────────────
-    selected_config_user_id: Optional[int] = None
+    selected_config_user_id: int | None = None
     usage_source = "server_api_key"
     current_user_llm_cfg = None
     owner_user_llm_cfg = None
@@ -565,7 +568,7 @@ async def build_image(
     # 当前设备对应的计费用户（策略：owner）
     # 对于设备端：使用设备 owner 的 user_id
     # 对于 Web 预览：使用当前登录用户的 user_id（如果提供了 current_user_id）
-    quota_user_id: Optional[int] = None
+    quota_user_id: int | None = None
     if mac:
         try:
             quota_user_id = await get_quota_owner_for_mac(mac)
@@ -635,7 +638,7 @@ async def build_image(
 
     if not mac and is_mode_cacheable and not skip_cache:
         # This is a preview request without device mac - use preview cache
-        preview_cache_key = content_cache._get_preview_cache_key(persona, screen_w, screen_h, preview_city_override, mode_override_hash, preview_ui_language)
+        content_cache._get_preview_cache_key(persona, screen_w, screen_h, preview_city_override, mode_override_hash, preview_ui_language)
         cached_img = await content_cache.get_preview(
             persona,
             screen_w,
@@ -931,9 +934,7 @@ async def build_image(
                 content_data.get("_used_fallback"),
                 content_data.get("_llm_ok"),
             )
-            if content_data.get("_is_fallback") is True:
-                content_fallback = True
-            elif content_data.get("_used_fallback") is True:
+            if content_data.get("_is_fallback") is True or content_data.get("_used_fallback") is True:
                 content_fallback = True
             else:
                 jm = get_registry().get_json_mode(persona, mac)
@@ -1036,7 +1037,7 @@ async def log_render_stats(
     elapsed_ms: int,
     *,
     voltage: float = 3.3,
-    rssi: Optional[int] = None,
+    rssi: int | None = None,
     status: str = "success",
     is_fallback: bool = False,
 ):
@@ -1047,7 +1048,7 @@ async def log_render_stats(
         logger.warning("[STATS] Failed to log render stats for %s", mac, exc_info=True)
 
 
-async def resolve_preview_voltage(v: Optional[float], mac: Optional[str]) -> float:
+async def resolve_preview_voltage(v: float | None, mac: str | None) -> float:
     if v is not None:
         return v
     if mac:
@@ -1057,7 +1058,7 @@ async def resolve_preview_voltage(v: Optional[float], mac: Optional[str]) -> flo
     return 3.3
 
 
-def resolve_refresh_minutes_for_device_state(config: Optional[dict], state: Optional[dict]) -> int:
+def resolve_refresh_minutes_for_device_state(config: dict | None, state: dict | None) -> int:
     refresh_minutes_raw = config.get("refresh_interval") if config else DEFAULT_REFRESH_INTERVAL
     try:
         refresh_minutes = int(refresh_minutes_raw)
@@ -1105,7 +1106,7 @@ def chip_family_from_asset_name(asset_name: str) -> str:
     return FIRMWARE_CHIP_FAMILY
 
 
-def pick_firmware_asset(assets: list[dict]) -> Optional[dict]:
+def pick_firmware_asset(assets: list[dict]) -> dict | None:
     preferred = [
         asset
         for asset in assets
@@ -1243,7 +1244,7 @@ def _render_api_key_invalid_image(screen_w: int, screen_h: int) -> Image.Image:
     message = "API key 无效或已过期，请检查设备配置"
     try:
         font = load_font("noto_serif_regular", 12)
-    except Exception:  # pragma: no cover - 极端环境下回退
+    except Exception as _:  # pragma: no cover - 极端环境下回退
         font = None
     try:
         if font:
@@ -1271,7 +1272,7 @@ def _render_quota_exhausted_image(screen_w: int, screen_h: int) -> Image.Image:
     message = "当前设备 owner 免费额度已用完，请联系 owner"
     try:
         font = load_font("noto_serif_regular", 12)
-    except Exception:  # pragma: no cover - 极端环境下回退
+    except Exception as _:  # pragma: no cover - 极端环境下回退
         font = None
     try:
         if font:
@@ -1298,7 +1299,7 @@ def _render_device_unbound_image(screen_w: int, screen_h: int, pair_code: str) -
     try:
         title_font = load_font("noto_serif_regular", 20)
         body_font = load_font("noto_serif_regular", 14)
-    except Exception:
+    except Exception as _:
         title_font = None
         body_font = None
     try:

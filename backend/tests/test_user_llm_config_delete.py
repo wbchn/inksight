@@ -4,13 +4,12 @@ import secrets
 from unittest.mock import patch
 
 import pytest
-from httpx import AsyncClient
-
 from api.index import app
+from core.cache import init_cache_db
 from core.config_store import init_db
 from core.db import get_main_db
 from core.stats_store import init_stats_db
-from core.cache import init_cache_db
+from httpx import AsyncClient
 
 
 @pytest.fixture

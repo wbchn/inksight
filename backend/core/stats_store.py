@@ -7,9 +7,11 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
-import aiosqlite
+import os
 from datetime import datetime
-from typing import Any, Optional, Union
+from typing import Any
+
+import aiosqlite
 
 logger = logging.getLogger(__name__)
 
@@ -97,7 +99,7 @@ async def log_render(
     await db.commit()
 
 
-async def log_heartbeat(mac: str, battery_voltage: float, wifi_rssi: Optional[int] = None):
+async def log_heartbeat(mac: str, battery_voltage: float, wifi_rssi: int | None = None):
     now = datetime.now().isoformat()
     db = await get_main_db()
     await db.execute(
@@ -117,7 +119,7 @@ async def log_heartbeat(mac: str, battery_voltage: float, wifi_rssi: Optional[in
     await db.commit()
 
 
-async def get_latest_battery_voltage(mac: str) -> Optional[float]:
+async def get_latest_battery_voltage(mac: str) -> float | None:
     db = await get_main_db()
     cursor = await db.execute(
         """SELECT battery_voltage FROM device_heartbeats
@@ -131,7 +133,7 @@ async def get_latest_battery_voltage(mac: str) -> Optional[float]:
     return float(row[0])
 
 
-async def get_latest_heartbeat(mac: str) -> Optional[dict]:
+async def get_latest_heartbeat(mac: str) -> dict | None:
     db = await get_main_db()
     cursor = await db.execute(
         """SELECT battery_voltage, wifi_rssi, created_at FROM device_heartbeats
@@ -307,7 +309,7 @@ async def get_render_history(mac: str, limit: int = 50, offset: int = 0) -> list
 # ── Content history ──────────────────────────────────────────
 
 
-def _compute_content_hash(content: Union[dict, str, None]) -> str:
+def _compute_content_hash(content: dict | str | None) -> str:
     """Compute a short hash for content deduplication."""
     if content is None:
         return ""
@@ -333,7 +335,7 @@ def _to_json_safe(value: Any) -> Any:
     return value
 
 
-async def save_render_content(mac: str, mode_id: str, content: Optional[dict]):
+async def save_render_content(mac: str, mode_id: str, content: dict | None):
     """Save rendered content to history for dedup and browsing."""
     now = datetime.now().isoformat()
     safe_content = _to_json_safe(content) if content else {}
@@ -357,7 +359,7 @@ async def save_render_content(mac: str, mode_id: str, content: Optional[dict]):
 
 
 async def get_content_history(
-    mac: str, limit: int = 30, offset: int = 0, mode: Optional[str] = None,
+    mac: str, limit: int = 30, offset: int = 0, mode: str | None = None,
 ) -> list[dict]:
     db = await get_main_db()
     if mode:
@@ -391,7 +393,7 @@ async def get_content_history(
     return results
 
 
-async def get_latest_render_content(mac: str) -> Optional[dict]:
+async def get_latest_render_content(mac: str) -> dict | None:
     db = await get_main_db()
     cursor = await db.execute(
         """SELECT mode_id, content FROM content_history
@@ -408,13 +410,13 @@ async def get_latest_render_content(mac: str) -> Optional[dict]:
     return {"mode_id": row[0], "content": content}
 
 
-async def add_favorite(mac: str, mode_id: str, content_json: Optional[str]):
+async def add_favorite(mac: str, mode_id: str, content_json: str | None):
     now = datetime.now().isoformat()
     content_str = content_json or "{}"
     content_hash = ""
     try:
         content_hash = _compute_content_hash(json.loads(content_str))
-    except (json.JSONDecodeError, TypeError) as exc:
+    except (json.JSONDecodeError, TypeError):
         logger.warning("[Stats] Failed to parse favorite content JSON for %s:%s", mac, mode_id, exc_info=True)
     db = await get_main_db()
     await db.execute(
@@ -475,15 +477,15 @@ async def get_recent_content_summaries(mac: str, mode_id: str, limit: int = 3) -
         try:
             data = json.loads(row[0]) if row[0] else {}
             for key in ("quote", "question", "challenge", "body", "word", "event_title", "name_cn", "text"):
-                if key in data and data[key]:
+                if data.get(key):
                     summaries.append(str(data[key])[:80])
                     break
-        except (json.JSONDecodeError, TypeError) as exc:
+        except (json.JSONDecodeError, TypeError):
             logger.warning("[Stats] Failed to parse content summary JSON for %s:%s", mac, mode_id, exc_info=True)
     return summaries
 
 
-async def check_habit(mac: str, habit_name: str, date: Optional[str] = None):
+async def check_habit(mac: str, habit_name: str, date: str | None = None):
     """Record a habit check for a given date (defaults to today)."""
     now = datetime.now()
     if not date:

@@ -1,12 +1,12 @@
 """
 Unit tests for the ContentCache module.
 """
-import pytest
 from datetime import datetime, timedelta
-from unittest.mock import AsyncMock, patch, MagicMock
-from PIL import Image
+from unittest.mock import AsyncMock, patch
 
+import pytest
 from core.cache import ContentCache
+from PIL import Image
 
 
 def _make_image() -> Image.Image:
@@ -104,7 +104,7 @@ class TestContentCache:
     @pytest.mark.asyncio
     async def test_check_and_regenerate_all_triggers_on_miss(self, cache, config):
         with patch.object(cache, "_get_from_db", new_callable=AsyncMock, return_value=None), \
-             patch.object(cache, "_generate_all_modes", new_callable=AsyncMock) as mock_gen:
+             patch.object(cache, "_generate_all_modes", new_callable=AsyncMock):
             result = await cache.check_and_regenerate_all(
                 "AA:BB:CC:DD:EE:FF", config, 3.3
             )

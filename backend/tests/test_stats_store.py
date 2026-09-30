@@ -2,7 +2,11 @@
 from unittest.mock import patch
 
 import pytest
-from core.stats_store import init_stats_db, log_heartbeat, get_device_stats, get_latest_heartbeat
+from core.stats_store import (
+    get_device_stats,
+    init_stats_db,
+    log_heartbeat,
+)
 
 
 @pytest.fixture(autouse=True)

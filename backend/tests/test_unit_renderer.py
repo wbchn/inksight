@@ -6,9 +6,8 @@ json_renderer.py. Tests for those live in test_json_renderer.py.
 This file tests only the Python builtin modes still dispatched by render_mode().
 """
 import pytest
-from PIL import Image
-
 from core.renderer import image_to_bmp_bytes, image_to_png_bytes, render_mode
+from PIL import Image
 
 
 def _make_1bit_image() -> Image.Image:
@@ -39,13 +38,13 @@ class TestImageConversion:
 class TestRenderMode:
     """render_mode is legacy; all modes are JSON-defined."""
 
-    COMMON_KWARGS = dict(
-        date_str="2月16日 周一",
-        weather_str="12°C",
-        battery_pct=85,
-        weather_code=1,
-        time_str="09:30",
-    )
+    COMMON_KWARGS = {
+        "date_str": "2月16日 周一",
+        "weather_str": "12°C",
+        "battery_pct": 85,
+        "weather_code": 1,
+        "time_str": "09:30",
+    }
 
     def test_all_personas_raise_value_error(self):
         with pytest.raises(ValueError):

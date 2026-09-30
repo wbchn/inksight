@@ -8,14 +8,15 @@
 """
 import os
 import sys
+from unittest.mock import patch
+
 import pytest
-from unittest.mock import patch, MagicMock
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from core.errors import LLMKeyMissingError
 from core.content import _get_client
-from core.crypto import encrypt_api_key, decrypt_api_key
+from core.crypto import decrypt_api_key, encrypt_api_key
+from core.errors import LLMKeyMissingError
 
 
 class TestGetClientApiKeyLogic:
@@ -176,6 +177,6 @@ class TestApiKeyFlow:
         # 2. 传递给 _get_client，应该从环境变量获取
         env_api_key = "sk-env-key-67890"
         with patch.dict(os.environ, {"DEEPSEEK_API_KEY": env_api_key}, clear=False):
-            client, max_tokens = _get_client("deepseek", "deepseek-chat", api_key=device_api_key)
+            client, _max_tokens = _get_client("deepseek", "deepseek-chat", api_key=device_api_key)
             assert client is not None
 

@@ -6,20 +6,18 @@ from __future__ import annotations
 
 import io
 import json
-import pytest
-from PIL import Image
-from unittest.mock import patch, AsyncMock, MagicMock
-from httpx import AsyncClient
+from unittest.mock import AsyncMock, MagicMock, patch
 
-from api.index import app
+import pytest
 from api import shared as shared_api
-from core.cache import content_cache
-from core.config_store import get_device_state, init_db
-from core.config_store import validate_alert_token
+from api.index import app
+from core.cache import content_cache, init_cache_db
+from core.config_store import get_device_state, init_db, validate_alert_token
 from core.db import get_main_db
 from core.mode_registry import reset_registry
 from core.stats_store import init_stats_db
-from core.cache import init_cache_db
+from httpx import AsyncClient
+from PIL import Image
 
 
 @pytest.fixture
@@ -195,7 +193,6 @@ async def test_render_returns_binding_prompt_when_device_has_no_owner(client, mo
 
     async def _fake_get_device_owner(mac: str):
         assert mac == "AA:BB:CC:DD:EE:99"
-        return None
 
     async def _fake_get_or_create_claim_token(mac: str, source: str = "render"):
         assert mac == "AA:BB:CC:DD:EE:99"

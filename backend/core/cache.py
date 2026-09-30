@@ -6,7 +6,6 @@ import io
 import logging
 import os
 from datetime import datetime, timedelta
-from typing import Optional
 
 import aiosqlite
 from PIL import Image
@@ -46,12 +45,17 @@ async def init_cache_db():
         await db.commit()
 
 from .config import (
-    SCREEN_WIDTH,
-    SCREEN_HEIGHT,
     DEFAULT_MODES,
+    SCREEN_HEIGHT,
+    SCREEN_WIDTH,
     get_cacheable_modes,
 )
-from .context import get_date_context, get_weather, calc_battery_pct, extract_location_settings
+from .context import (
+    calc_battery_pct,
+    extract_location_settings,
+    get_date_context,
+    get_weather,
+)
 from .pipeline import generate_and_render, get_effective_mode_config
 
 
@@ -61,7 +65,7 @@ class ContentCache:
         self._lock = asyncio.Lock()
         self._regenerating: set[str] = set()
         self._db_failure_count = 0
-        self._db_disabled_until: Optional[datetime] = None
+        self._db_disabled_until: datetime | None = None
 
     async def clear(self):
         """Clear both in-memory and persistent cache (for testing/benchmarking)."""
@@ -86,8 +90,8 @@ class ContentCache:
 
     def _get_preview_cache_key(
         self, persona: str, screen_w: int, screen_h: int,
-        city_override: Optional[str] = None, mode_override_hash: Optional[str] = None,
-        ui_language: Optional[str] = None,
+        city_override: str | None = None, mode_override_hash: str | None = None,
+        ui_language: str | None = None,
     ) -> str:
         """Generate cache key for preview requests (no mac required)."""
         persona = (persona or "").upper()
@@ -113,7 +117,7 @@ class ContentCache:
 
     def _record_db_failure(self, operation: str, exc: Exception):
         self._db_failure_count += 1
-        logger.warning("[CACHE] Persistent cache %s failed (%s)", operation, exc, exc_info=True)
+        logger.warning("[CACHE] Persistent cache %s failed (%s)", operation, exc)
         if self._db_failure_count >= 3 and self._db_disabled_until is None:
             self._db_disabled_until = datetime.now() + timedelta(minutes=5)
             logger.error(
@@ -139,9 +143,9 @@ class ContentCache:
 
     async def get(
         self, mac: str, persona: str, config: dict,
-        ttl_minutes: Optional[int] = None,
+        ttl_minutes: int | None = None,
         screen_w: int = SCREEN_WIDTH, screen_h: int = SCREEN_HEIGHT,
-    ) -> Optional[Image.Image]:
+    ) -> Image.Image | None:
         """Get cached image if available and not expired"""
         if DISABLE_CACHE:
             return None
@@ -193,9 +197,9 @@ class ContentCache:
 
     async def get_preview(
         self, persona: str, screen_w: int, screen_h: int,
-        city_override: Optional[str] = None, mode_override_hash: Optional[str] = None,
-        ui_language: Optional[str] = None,
-    ) -> Optional[Image.Image]:
+        city_override: str | None = None, mode_override_hash: str | None = None,
+        ui_language: str | None = None,
+    ) -> Image.Image | None:
         """Get cached preview image if available and not expired."""
         if DISABLE_CACHE:
             return None
@@ -223,8 +227,8 @@ class ContentCache:
     async def set_preview(
         self, persona: str, img: Image.Image,
         screen_w: int, screen_h: int,
-        city_override: Optional[str] = None, mode_override_hash: Optional[str] = None,
-        ui_language: Optional[str] = None,
+        city_override: str | None = None, mode_override_hash: str | None = None,
+        ui_language: str | None = None,
     ):
         """Store preview image in cache."""
         if DISABLE_CACHE:
@@ -244,7 +248,7 @@ class ContentCache:
         self, mac: str, config: dict, v: float = 3.3,
         screen_w: int = SCREEN_WIDTH, screen_h: int = SCREEN_HEIGHT,
         colors: int = 2,
-        cacheable_modes: Optional[set[str]] = None,
+        cacheable_modes: set[str] | None = None,
     ) -> bool:
         """Check if all modes are cached, if not, regenerate all modes."""
         if DISABLE_CACHE or DISABLE_BATCH_REGEN:
@@ -436,7 +440,7 @@ class ContentCache:
         screen_w: int = SCREEN_WIDTH,
         screen_h: int = SCREEN_HEIGHT,
         colors: int = 2,
-    ) -> Optional[tuple[str, Image.Image]]:
+    ) -> tuple[str, Image.Image] | None:
         """Render a single mode with pre-fetched weather (no redundant API calls)."""
         try:
             logger.info(f"[CACHE] Rendering {mac}:{persona} (pre-fetched weather)...")
@@ -492,7 +496,7 @@ class ContentCache:
             logger.error(f"[CACHE] ✗ {mac}:{persona} failed: {e}")
             return False
 
-    async def _get_from_db(self, key: str, ttl_minutes: Optional[int] = None) -> Optional[Image.Image]:
+    async def _get_from_db(self, key: str, ttl_minutes: int | None = None) -> Image.Image | None:
         db = await get_cache_db()
         cursor = await db.execute(
             "SELECT image_data, created_at FROM image_cache WHERE cache_key = ?",

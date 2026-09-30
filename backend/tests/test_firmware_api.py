@@ -1,9 +1,8 @@
 import pytest
-from httpx import AsyncClient
-
 from api import shared as shared_api
 from api.index import app
 from api.routes import firmware as firmware_routes
+from httpx import AsyncClient
 
 
 @pytest.fixture

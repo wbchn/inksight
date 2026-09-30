@@ -2,8 +2,8 @@
 Unit tests for Pydantic input validation schemas.
 """
 import pytest
-from pydantic import ValidationError
 from core.schemas import ConfigRequest
+from pydantic import ValidationError
 
 
 class TestConfigRequest:

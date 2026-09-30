@@ -1,8 +1,6 @@
 """API 鉴权依赖的单元测试。"""
-import os
 import pytest
-
-from core.auth import validate_mac_param, require_device_token, require_admin
+from core.auth import require_admin, require_device_token, validate_mac_param
 
 
 class TestValidateMacParam:

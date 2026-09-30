@@ -10,8 +10,9 @@ import queue
 import threading
 import time
 import uuid
+from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
-from typing import Any, AsyncIterator, TypedDict
+from typing import Any, TypedDict
 
 import websockets
 from PIL import Image, ImageDraw
@@ -125,7 +126,7 @@ class VoiceRuntimeSettings:
         llm_model: str,
         llm_api_key: str | None = None,
         llm_base_url: str | None = None,
-    ) -> "VoiceRuntimeSettings":
+    ) -> VoiceRuntimeSettings:
         shared_voice_api_key = VOICE_DASHSCOPE_API_KEY or _env_str("DASHSCOPE_API_KEY", "") or None
         env_stt_key = VOICE_STT_API_KEY or shared_voice_api_key
         env_tts_key = VOICE_TTS_API_KEY or shared_voice_api_key
@@ -198,13 +199,13 @@ class VoiceWsSessionState:
     audio_parts: list[bytes] = field(default_factory=list)
     event_queue: asyncio.Queue[dict | None] = field(default_factory=asyncio.Queue)
     generation_task: asyncio.Task[None] | None = None
-    asr_bridge: "RealtimeAsrTurnBridge | None" = None
+    asr_bridge: RealtimeAsrTurnBridge | None = None
     latest_partial_transcript: str = ""
     latest_partial_at: float = 0.0
     active_turn_id: str | None = None
     active_turn_transcript: str = ""
-    turn_metrics: "VoiceWsTurnMetrics | None" = None
-    pending_tts_bridge: "_StreamingTtsBridge | None" = None
+    turn_metrics: VoiceWsTurnMetrics | None = None
+    pending_tts_bridge: _StreamingTtsBridge | None = None
     _auto_commit_task: asyncio.Task[None] | None = None
 
 
@@ -509,7 +510,7 @@ def _dashscope_api_key(explicit_key: str | None = None) -> str:
 
 def _dashscope_realtime_asr_url() -> str:
     normalized = VOICE_REALTIME_ASR_WS_URL.strip()
-    if normalized.startswith("ws://") or normalized.startswith("wss://"):
+    if normalized.startswith(("ws://", "wss://")):
         return normalized
     normalized = normalized.rstrip("/")
     if normalized.startswith("http://"):
@@ -523,11 +524,11 @@ def _dashscope_tts_ws_url() -> str:
     normalized = VOICE_STREAMING_TTS_WS_URL.strip()
     if not normalized:
         return VOICE_STREAMING_TTS_WS_URL
-    if normalized.startswith("ws://") or normalized.startswith("wss://"):
+    if normalized.startswith(("ws://", "wss://")):
         return normalized
 
     normalized = normalized.rstrip("/")
-    if normalized.endswith("/api/v1") or normalized.endswith("/compatible-mode/v1"):
+    if normalized.endswith(("/api/v1", "/compatible-mode/v1")):
         normalized = normalized[: normalized.rfind("/")]
 
     if normalized.startswith("http://"):
@@ -1143,13 +1144,7 @@ async def synthesize_prompt_pcm(text: str, settings: VoiceRuntimeSettings | None
         llm_provider="aliyun",
         llm_model="qwen3-coder-480b-a35b-instruct",
     )
-    cache_key = "|".join(
-        [
-            VOICE_STREAMING_TTS_MODEL,
-            VOICE_STREAMING_TTS_VOICE,
-            text,
-        ]
-    )
+    cache_key = f"{VOICE_STREAMING_TTS_MODEL}|{VOICE_STREAMING_TTS_VOICE}|{text}"
     cached = _voice_prompt_cache.get(cache_key)
     if cached is not None:
         if not cached:
@@ -1599,7 +1594,7 @@ async def _run_voice_ws_generation_streaming(
             if metrics is not None and metrics.first_tts_audio_at <= 0:
                 metrics.first_tts_audio_at = time.perf_counter()
             reply_text = "没听清，请再说一次。"
-            image_bmp = await _finalize_voice_ws_turn(
+            await _finalize_voice_ws_turn(
                 session=session, turn_id=turn_id, transcript=_resolved_transcript(),
                 reply_text=reply_text, audio_parts=audio_parts,
             )
@@ -1704,7 +1699,7 @@ async def _run_voice_ws_generation_streaming(
                 pcm_bytes=pcm_chunk, sample_rate=16000,
             )
 
-        image_bmp = await _finalize_voice_ws_turn(
+        await _finalize_voice_ws_turn(
             session=session, turn_id=turn_id, transcript=_resolved_transcript(),
             reply_text=reply_text, audio_parts=audio_parts,
         )
@@ -1760,7 +1755,7 @@ async def _run_voice_ws_generation(
             audio_parts.append(pcm_chunk)
             if metrics is not None and metrics.first_tts_audio_at <= 0:
                 metrics.first_tts_audio_at = time.perf_counter()
-            image_bmp = await _finalize_voice_ws_turn(
+            await _finalize_voice_ws_turn(
                 session=session,
                 turn_id=turn_id,
                 transcript=_resolved_transcript(),
@@ -1920,7 +1915,7 @@ async def _run_voice_ws_generation(
                 sample_rate=16000,
             )
 
-        image_bmp = await _finalize_voice_ws_turn(
+        await _finalize_voice_ws_turn(
             session=session,
             turn_id=turn_id,
             transcript=_resolved_transcript(),

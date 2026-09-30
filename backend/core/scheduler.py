@@ -18,10 +18,7 @@ from __future__ import annotations
 
 import json
 import logging
-import os
-from datetime import date
-from datetime import datetime
-from typing import Optional
+from datetime import date, datetime
 
 import httpx
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -426,8 +423,7 @@ async def _generate_riddles_with_llm(count: int = 50) -> list[dict]:
                     if q and q not in existing_questions:
                         # 清理谜底字段（去掉"谜底："前缀）
                         answer = r.get("answer", "")
-                        if answer.startswith("谜底："):
-                            answer = answer[3:]
+                        answer = answer.removeprefix("谜底：")
                         r["answer"] = answer
                         existing_questions.add(q)
                         all_riddles.append(r)

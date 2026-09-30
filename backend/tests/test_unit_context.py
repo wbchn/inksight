@@ -1,21 +1,21 @@
 """
 Unit tests for context helpers (battery, city, weather).
 """
-import pytest
-from unittest.mock import AsyncMock, patch, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
+from core.config import DEFAULT_LATITUDE, DEFAULT_LONGITUDE
 from core.context import (
-    calc_battery_pct,
-    _resolve_city,
-    get_weather,
-    search_locations,
     _generate_weather_advice,
-    _weather_code_to_desc,
     _qweather_current,
     _qweather_forecast_to_standard,
     _qweather_icon_to_wmo,
+    _resolve_city,
+    _weather_code_to_desc,
+    calc_battery_pct,
+    get_weather,
+    search_locations,
 )
-from core.config import DEFAULT_LATITUDE, DEFAULT_LONGITUDE
 
 
 class TestCalcBatteryPct:
@@ -42,7 +42,7 @@ class TestResolveCity:
         assert lon == pytest.approx(116.40, abs=0.1)
 
     def test_normalized_match(self):
-        lat, lon = _resolve_city("杭州市")
+        lat, _lon = _resolve_city("杭州市")
         assert lat == pytest.approx(30.27, abs=0.1)
 
     def test_none_returns_default(self):

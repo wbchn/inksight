@@ -9,8 +9,11 @@ import tempfile
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from core.layout_presets import get_public_layout_dsl_catalog
-from core.mode_registry import ModeRegistry, _validate_mode_def, _validate_mode_def_with_error, JsonMode
-
+from core.mode_registry import (
+    ModeRegistry,
+    _validate_mode_def,
+    _validate_mode_def_with_error,
+)
 
 SAMPLE_MODE_DEF = {
     "mode_id": "TEST_MODE",

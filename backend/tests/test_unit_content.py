@@ -2,22 +2,22 @@
 Unit tests for content generation helpers (no real LLM calls).
 """
 import json
-import pytest
-import httpx
-from unittest.mock import AsyncMock, patch, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
+import httpx
+import pytest
 from core.content import (
-    _clean_json_response,
     _build_context_str,
     _build_style_instructions,
+    _clean_json_response,
     _fallback_content,
-    generate_countdown_content,
-    generate_artwall_content,
-    generate_recipe_content,
-    generate_content,
+    fetch_devto_top,
     fetch_hn_top_stories,
     fetch_ph_top_product,
-    fetch_devto_top,
+    generate_artwall_content,
+    generate_content,
+    generate_countdown_content,
+    generate_recipe_content,
 )
 from core.errors import LLMKeyMissingError
 from core.json_content import _collect_image_fields

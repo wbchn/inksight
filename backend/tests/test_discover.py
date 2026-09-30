@@ -2,15 +2,15 @@
 Discover (模式分享广场) 功能的集成测试
 """
 import json
-import pytest
-from unittest.mock import patch, AsyncMock
-from httpx import AsyncClient
+from unittest.mock import AsyncMock, patch
 
+import pytest
 from api.index import app
-from core.config_store import get_main_db, init_db, upsert_device_membership
-from core.mode_registry import get_registry, CUSTOM_JSON_DIR
-from core.stats_store import init_stats_db
 from core.cache import init_cache_db
+from core.config_store import get_main_db, init_db, upsert_device_membership
+from core.mode_registry import get_registry
+from core.stats_store import init_stats_db
+from httpx import AsyncClient
 
 TEST_MAC = "AA:BB:CC:DD:EE:01"
 
@@ -154,7 +154,6 @@ async def test_user(client: AsyncClient):
 @pytest.fixture
 async def test_custom_mode(tmp_path, client: AsyncClient, test_user):
     """创建一个测试用的自定义模式"""
-    from pathlib import Path
     
     # 创建自定义模式文件
     mode_def = {
@@ -453,7 +452,6 @@ class TestDiscoverAPI:
     @pytest.mark.asyncio
     async def test_publish_mode_image_gen_waiting(self, client: AsyncClient, test_user, tmp_path, sample_date_ctx, sample_weather):
         """测试图片生成类型的等待逻辑"""
-        from pathlib import Path
         
         # 创建图片生成类型的模式
         mode_def = {
@@ -535,7 +533,6 @@ class TestDiscoverAPI:
     @pytest.mark.asyncio
     async def test_publish_mode_image_gen_timeout(self, client: AsyncClient, test_user, tmp_path, sample_date_ctx, sample_weather):
         """测试图片生成超时"""
-        from pathlib import Path
         
         mode_def = {
             "mode_id": "TEST_IMAGE_GEN_TIMEOUT",

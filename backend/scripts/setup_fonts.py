@@ -60,8 +60,7 @@ def _fetch_manifest(family: str) -> dict:
     with urllib.request.urlopen(req, timeout=30) as resp:
         raw = resp.read().decode("utf-8")
     prefix = ")]}\'"
-    if raw.startswith(prefix):
-        raw = raw[len(prefix):]
+    raw = raw.removeprefix(prefix)
     return json.loads(raw.strip())
 
 
@@ -117,7 +116,7 @@ def _install_vector_fonts(force: bool) -> tuple[int, int]:
         return 0, 0
 
     print(f"Vector fonts: need {len(all_needed)} file(s).")
-    families_to_fetch = sorted(set(f for f, _ in all_needed))
+    families_to_fetch = sorted({f for f, _ in all_needed})
     url_maps: dict[str, dict[str, str]] = {}
     for family in families_to_fetch:
         display_name = family.replace("+", " ")

@@ -36,8 +36,8 @@ def fit_image_to_box(
     scale_x = width / src_w
     scale_y = height / src_h
     scale = min(scale_x, scale_y) if fit_mode == "contain" else max(scale_x, scale_y)
-    resized_w = max(1, int(round(src_w * scale)))
-    resized_h = max(1, int(round(src_h * scale)))
+    resized_w = max(1, round(src_w * scale))
+    resized_h = max(1, round(src_h * scale))
     resized = src_rgba.resize((resized_w, resized_h), Image.LANCZOS)
     base = Image.new("RGBA", (width, height), (255, 255, 255, 255))
     paste_x = _aligned_offset(width, resized_w, align_x)

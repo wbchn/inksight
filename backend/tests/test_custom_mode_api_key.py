@@ -12,16 +12,17 @@
 """
 import os
 import sys
+from unittest.mock import AsyncMock, MagicMock, patch
+
 import pytest
-from unittest.mock import AsyncMock, patch, MagicMock
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from core.errors import LLMKeyMissingError
-from core.pipeline import _generate_content_for_persona
-from core.json_content import generate_json_mode_content
-from core.mode_generator import generate_mode_definition, _call_llm_with_messages
 from core.content import _get_client
+from core.errors import LLMKeyMissingError
+from core.json_content import generate_json_mode_content
+from core.mode_generator import _call_llm_with_messages, generate_mode_definition
+from core.pipeline import _generate_content_for_persona
 
 
 @pytest.fixture
@@ -111,7 +112,7 @@ class TestPipelineApiKey:
         
         # 模拟加密的 api_key
         from core.crypto import encrypt_api_key
-        encrypted_key = encrypt_api_key(user_api_key)
+        encrypt_api_key(user_api_key)
         
         # 在新的实现中，pipeline 不再从设备配置的 llm_api_key 读取用户 Key，
         # 而是由上层 shared.build_image 注入 config["user_api_key"]。

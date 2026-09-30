@@ -1,11 +1,15 @@
 """
 Unit tests for the unified generate_and_render pipeline.
 """
-import pytest
-from unittest.mock import AsyncMock, patch, MagicMock
-from PIL import Image
+from unittest.mock import AsyncMock, MagicMock, patch
 
-from core.pipeline import generate_and_render, _generate_content_for_persona, get_effective_mode_config
+import pytest
+from core.pipeline import (
+    _generate_content_for_persona,
+    generate_and_render,
+    get_effective_mode_config,
+)
+from PIL import Image
 
 
 def _make_image() -> Image.Image:
@@ -133,7 +137,7 @@ class TestGenerateContentForPersona:
             patch("core.json_content.generate_json_mode_content", new_callable=AsyncMock) as mock_jc,
         ):
             mock_jc.return_value = {"workout_name": "Test", "exercises": []}
-            result = await _generate_content_for_persona(
+            await _generate_content_for_persona(
                 "FITNESS", {}, sample_date_ctx, sample_weather["weather_str"]
             )
             mock_jc.assert_called_once()
@@ -177,11 +181,11 @@ class TestGenerateAndRender:
         with (
             patch("core.mode_registry.get_registry", return_value=mock_reg),
             patch("core.json_content.generate_json_mode_content", new_callable=AsyncMock) as mock_gc,
-            patch("core.json_renderer.render_json_mode", return_value=mock_img) as mock_rm,
+            patch("core.json_renderer.render_json_mode", return_value=mock_img),
         ):
             mock_gc.return_value = {"quote": "Test", "author": "Author"}
 
-            result_img, result_content = await generate_and_render(
+            result_img, _result_content = await generate_and_render(
                 "STOIC", None, sample_date_ctx, sample_weather, 85.0
             )
             assert result_img is mock_img

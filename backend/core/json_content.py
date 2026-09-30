@@ -8,15 +8,14 @@ import asyncio
 import hashlib
 import json
 import logging
+import os
 import random
 import re
-from json import JSONDecodeError
 from datetime import datetime
+from json import JSONDecodeError
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
-
-import os
 
 import httpx
 from alibabacloud_alimt20181012 import models as alimt_models
@@ -25,8 +24,18 @@ from alibabacloud_tea_openapi import models as open_api_models
 from httpx import HTTPStatusError
 from openai import OpenAIError
 
-from .config import DEFAULT_LLM_PROVIDER, DEFAULT_LLM_MODEL, DEFAULT_IMAGE_PROVIDER, DEFAULT_IMAGE_MODEL
-from .content import _build_context_str, _build_style_instructions, _call_llm, _clean_json_response
+from .config import (
+    DEFAULT_IMAGE_MODEL,
+    DEFAULT_IMAGE_PROVIDER,
+    DEFAULT_LLM_MODEL,
+    DEFAULT_LLM_PROVIDER,
+)
+from .content import (
+    _build_context_str,
+    _build_style_instructions,
+    _call_llm,
+    _clean_json_response,
+)
 from .db import get_cache_db
 from .errors import LLMKeyMissingError
 from .layout_presets import expand_layout_presets
@@ -605,7 +614,7 @@ def _validate_content_quality(result: dict, schema: dict | None = None) -> bool:
     """Validate LLM output quality. Returns True if acceptable."""
     if not result:
         return False
-    for key, val in result.items():
+    for val in result.values():
         if isinstance(val, str) and len(val) > 500:
             return False
     important_keys = [k for k in result if k in ("quote", "question", "body", "word", "event_title", "challenge", "name_cn", "text")]
@@ -670,27 +679,27 @@ async def generate_json_mode_content(
     except Exception:
         override = {}
 
-    common_args = dict(
-        date_str=date_str,
-        weather_str=weather_str,
-        festival=festival,
-        daily_word=daily_word,
-        upcoming_holiday=upcoming_holiday,
-        days_until_holiday=days_until_holiday,
-        character_tones=character_tones,
-        language=language,
-        content_tone=content_tone,
-        llm_provider=llm_provider,
-        llm_model=llm_model,
-        llm_base_url=llm_base_url,
-        image_provider=image_provider,
-        image_model=image_model,
-        config=config or {},
-        date_ctx=date_ctx or {},
-        mac=mac,
-        api_key=api_key,
-        image_api_key=image_api_key,
-    )
+    common_args = {
+        "date_str": date_str,
+        "weather_str": weather_str,
+        "festival": festival,
+        "daily_word": daily_word,
+        "upcoming_holiday": upcoming_holiday,
+        "days_until_holiday": days_until_holiday,
+        "character_tones": character_tones,
+        "language": language,
+        "content_tone": content_tone,
+        "llm_provider": llm_provider,
+        "llm_model": llm_model,
+        "llm_base_url": llm_base_url,
+        "image_provider": image_provider,
+        "image_model": image_model,
+        "config": config or {},
+        "date_ctx": date_ctx or {},
+        "mac": mac,
+        "api_key": api_key,
+        "image_api_key": image_api_key,
+    }
 
     # If override explicitly provides content fields, short-circuit LLM for llm_json.
     if ctype == "llm_json" and isinstance(override, dict) and override:
@@ -723,7 +732,10 @@ async def generate_json_mode_content(
                 urls = []
             if urls:
                 if mac and len(urls) > 1:
-                    from .config_store import get_photo_frame_index, set_photo_frame_index
+                    from .config_store import (
+                        get_photo_frame_index,
+                        set_photo_frame_index,
+                    )
                     idx = await get_photo_frame_index(mac)
                     content["image_url"] = urls[idx % len(urls)]
                     await set_photo_frame_index(mac, (idx + 1) % len(urls))
@@ -803,7 +815,11 @@ async def generate_json_mode_content(
     first_attempt_hint = ""
     if mac and ctype in ("llm", "llm_json") and not DISABLE_DEDUP:
         try:
-            from .stats_store import get_content_history, get_recent_content_hashes, get_recent_content_summaries
+            from .stats_store import (
+                get_content_history,
+                get_recent_content_hashes,
+                get_recent_content_summaries,
+            )
             recent_hashes = await get_recent_content_hashes(mac, mode_id, limit=20)
             summaries = await get_recent_content_summaries(mac, mode_id, limit=3)
             if summaries:
@@ -1209,8 +1225,10 @@ async def _generate_computed_content(mode_def: dict, content_cfg: dict, fallback
 
     if provider == "calendar_grid":
         import calendar as cal_mod
+
         from zhdate import ZhDate
-        from .config import SOLAR_FESTIVALS, LUNAR_FESTIVALS, SOLAR_TERMS
+
+        from .config import LUNAR_FESTIVALS, SOLAR_FESTIVALS, SOLAR_TERMS
 
         lang = kwargs.get("language", "zh")
         is_en = lang == "en"
@@ -1260,7 +1278,6 @@ async def _generate_computed_content(mode_def: dict, content_cfg: dict, fallback
                 thx = 22 + (3 - _nov1_wd) % 7
                 result[thx] = "Thxgiving"
             if m == 3 or m == 4:
-                import math
                 a = y % 19; b, c = divmod(y, 100); d, e = divmod(b, 4)
                 f = (b + 8) // 25; g = (b - f + 1) // 3
                 h = (19 * a + b - d - g + 15) % 30; i, k = divmod(c, 4)
@@ -1389,9 +1406,8 @@ async def _generate_computed_content(mode_def: dict, content_cfg: dict, fallback
         mo = config.get("mode_overrides", {})
         if isinstance(mo, dict):
             tt_ov = mo.get("TIMETABLE", {})
-            if isinstance(tt_ov, dict):
-                if "style" in tt_ov:
-                    mode_settings = {**mode_settings, **tt_ov}
+            if isinstance(tt_ov, dict) and "style" in tt_ov:
+                mode_settings = {**mode_settings, **tt_ov}
 
         style = str(mode_settings.get("style", "daily"))
         periods = mode_settings.get("periods")
@@ -1499,16 +1515,16 @@ async def _generate_computed_content(mode_def: dict, content_cfg: dict, fallback
 
 async def _generate_external_data_content(mode_def: dict, content_cfg: dict, fallback: dict, **kwargs) -> dict:
     from .content import (
+        fetch_devto_top,
         fetch_hn_top_stories,
         fetch_ph_top_product,
-        fetch_devto_top,
     )
 
     provider = content_cfg.get("provider", "")
-    llm_provider = kwargs.get("llm_provider") or DEFAULT_LLM_PROVIDER
-    llm_model = kwargs.get("llm_model") or DEFAULT_LLM_MODEL
-    api_key = kwargs.get("api_key")
-    llm_base_url = kwargs.get("llm_base_url")
+    kwargs.get("llm_provider") or DEFAULT_LLM_PROVIDER
+    kwargs.get("llm_model") or DEFAULT_LLM_MODEL
+    kwargs.get("api_key")
+    kwargs.get("llm_base_url")
     language = kwargs.get("language", "zh") or "zh"
 
     if provider == "briefing":

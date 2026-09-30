@@ -5,7 +5,7 @@ Pydantic 输入验证模型
 from __future__ import annotations
 
 import re
-from typing import Optional
+
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from .config import get_supported_modes
@@ -58,8 +58,8 @@ class ConfigRequest(BaseModel):
     modeLanguage: str = Field(default="zh", description="模式内容语言: zh / en")
     contentTone: str = Field(default="neutral", description="调性: positive / neutral / deep / humor")
     city: str = Field(default="杭州", max_length=40, description="城市名称")
-    latitude: Optional[float] = Field(default=None, ge=-90, le=90, description="地点纬度")
-    longitude: Optional[float] = Field(default=None, ge=-180, le=180, description="地点经度")
+    latitude: float | None = Field(default=None, ge=-90, le=90, description="地点纬度")
+    longitude: float | None = Field(default=None, ge=-180, le=180, description="地点经度")
     timezone: str = Field(default="", max_length=64, description="地点时区")
     admin1: str = Field(default="", max_length=64, description="地点所属省级行政区")
     country: str = Field(default="", max_length=64, description="地点所属国家")
@@ -112,7 +112,7 @@ class ConfigRequest(BaseModel):
         for mode in v:
             m = mode.upper().strip()
             # 允许 CUSTOM_* / MY_* 透传，避免误判导致 422/500
-            if not (m.startswith("CUSTOM_") or m.startswith("MY_") or m in supported):
+            if not (m.startswith(("CUSTOM_", "MY_")) or m in supported):
                 raise ValueError(f"不支持的模式: {mode}，可选: {supported}")
             cleaned.append(m)
         return cleaned
@@ -249,18 +249,18 @@ class RenderQuery(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
     v: float = Field(default=3.3, description="Battery voltage")
-    mac: Optional[str] = Field(default=None, description="Device MAC address")
-    persona: Optional[str] = Field(default=None, description="Force persona")
-    rssi: Optional[int] = Field(default=None, description="WiFi RSSI (dBm)")
-    refresh_min: Optional[int] = Field(default=None, ge=1, le=1440, description="Device effective refresh interval in minutes")
+    mac: str | None = Field(default=None, description="Device MAC address")
+    persona: str | None = Field(default=None, description="Force persona")
+    rssi: int | None = Field(default=None, description="WiFi RSSI (dBm)")
+    refresh_min: int | None = Field(default=None, ge=1, le=1440, description="Device effective refresh interval in minutes")
     w: int = Field(default=400, ge=100, le=1600, description="Screen width in pixels")
     h: int = Field(default=300, ge=100, le=1200, description="Screen height in pixels")
-    next_mode: Optional[int] = Field(default=None, alias="next", description="1 = advance to next mode")
+    next_mode: int | None = Field(default=None, alias="next", description="1 = advance to next mode")
     colors: int = Field(default=2, ge=2, le=4, description="Device color capability (2=BW, 3=BWR, 4=BWRY)")
 
     @field_validator("mac")
     @classmethod
-    def validate_optional_mac(cls, v: Optional[str]) -> Optional[str]:
+    def validate_optional_mac(cls, v: str | None) -> str | None:
         if v is None:
             return None
         return ConfigRequest.validate_mac(v)
@@ -269,8 +269,8 @@ class RenderQuery(BaseModel):
 class DeviceHeartbeatRequest(BaseModel):
     """设备心跳请求体。"""
 
-    battery_voltage: Optional[float] = Field(default=3.3, ge=0.0, le=10.0)
-    wifi_rssi: Optional[int] = Field(default=None, ge=-150, le=0)
+    battery_voltage: float | None = Field(default=3.3, ge=0.0, le=10.0)
+    wifi_rssi: int | None = Field(default=None, ge=-150, le=0)
 
 
 class OkResponse(BaseModel):

@@ -1,7 +1,6 @@
-from PIL import Image
-
 from core import native_dither
 from core.image_processing import convert_image_block, quantize_image_for_eink
+from PIL import Image
 
 
 def test_native_dither_library_is_available():

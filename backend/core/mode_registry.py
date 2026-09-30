@@ -7,8 +7,8 @@ from __future__ import annotations
 import json
 import logging
 import os
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
-from typing import Awaitable, Callable, Optional
 
 from PIL import Image
 
@@ -32,9 +32,9 @@ class ContentContext:
     language: str = "zh"
     content_tone: str = "neutral"
     character_tones: list[str] = field(default_factory=list)
-    api_key: Optional[str] = None
-    image_api_key: Optional[str] = None
-    llm_base_url: Optional[str] = None
+    api_key: str | None = None
+    image_api_key: str | None = None
+    llm_base_url: str | None = None
 
 
 ContentFn = Callable[[ContentContext], Awaitable[dict]]
@@ -70,7 +70,7 @@ class JsonMode:
     info: ModeInfo
     definition: dict = field(default_factory=dict)
     file_path: str = ""
-    mac: Optional[str] = None  # Device MAC address for device-specific custom modes
+    mac: str | None = None  # Device MAC address for device-specific custom modes
 
 
 class ModeRegistry:
@@ -109,7 +109,7 @@ class ModeRegistry:
         )
         logger.debug(f"[Registry] Registered builtin mode: {mode_id}")
 
-    def load_json_mode(self, path: str, *, source: str = "custom") -> Optional[str]:
+    def load_json_mode(self, path: str, *, source: str = "custom") -> str | None:
         """Load and validate a single JSON mode definition. Returns mode_id or None on error."""
         try:
             with open(path, "r", encoding="utf-8") as f:
@@ -204,7 +204,7 @@ class ModeRegistry:
             logger.info(f"[Registry] Loaded {len(loaded)} English mode overrides")
         return loaded
 
-    def unregister_custom(self, mode_id: str, mac: Optional[str] = None) -> bool:
+    def unregister_custom(self, mode_id: str, mac: str | None = None) -> bool:
         """Unregister a custom mode. If mac is provided, only unregister if it matches."""
         mode_id = mode_id.upper()
         jm = self._json_modes.get(mode_id)
@@ -233,11 +233,11 @@ class ModeRegistry:
                 count += 1
         return count
 
-    def load_custom_mode_from_dict(self, mode_id: str, definition: dict, *, source: str = "custom", mac: Optional[str] = None) -> Optional[str]:
+    def load_custom_mode_from_dict(self, mode_id: str, definition: dict, *, source: str = "custom", mac: str | None = None) -> str | None:
         """Load a custom mode from a dictionary (e.g., from database). Returns mode_id or None on error."""
         mode_id = mode_id.upper()
         if not mode_id:
-            logger.error(f"[Registry] Missing mode_id in definition")
+            logger.error("[Registry] Missing mode_id in definition")
             return None
 
         if not _validate_mode_def(definition):
@@ -278,7 +278,7 @@ class ModeRegistry:
         logger.info(f"[Registry] Loaded custom mode from database: {mode_id}" + (f" (device {normalized_mac})" if normalized_mac else ""))
         return mode_id
 
-    async def load_user_custom_modes(self, user_id: int, mac: Optional[str] = None) -> list[str]:
+    async def load_user_custom_modes(self, user_id: int, mac: str | None = None) -> list[str]:
         """Load custom modes for a user from database into registry, optionally filtered by device MAC."""
         from core.config_store import get_user_custom_modes
         # If mac is provided, unregister all modes for this device first to ensure clean state
@@ -309,7 +309,7 @@ class ModeRegistry:
 
     # ── Queries ──────────────────────────────────────────────
 
-    def is_supported(self, mode_id: str, mac: Optional[str] = None) -> bool:
+    def is_supported(self, mode_id: str, mac: str | None = None) -> bool:
         """Check if a mode is supported. If mac is provided, only check modes for that device."""
         mode_id = mode_id.upper()
         if mode_id in self._builtin:
@@ -338,17 +338,17 @@ class ModeRegistry:
                 ids.add(mid)
         return ids
 
-    def get_mode_info(self, mode_id: str) -> Optional[ModeInfo]:
+    def get_mode_info(self, mode_id: str) -> ModeInfo | None:
         mode_id = mode_id.upper()
         if mode_id in self._builtin:
             return self._builtin[mode_id].info
         jm = self._json_modes.get(mode_id)
         return jm.info if jm else None
 
-    def get_builtin(self, mode_id: str) -> Optional[BuiltinMode]:
+    def get_builtin(self, mode_id: str) -> BuiltinMode | None:
         return self._builtin.get(mode_id.upper())
 
-    def get_json_mode(self, mode_id: str, mac: Optional[str] = None, *, language: str = "zh") -> Optional[JsonMode]:
+    def get_json_mode(self, mode_id: str, mac: str | None = None, *, language: str = "zh") -> JsonMode | None:
         """Get a JSON mode. If language is 'en', prefer English override."""
         uid = mode_id.upper()
         if language == "en":
@@ -368,7 +368,7 @@ class ModeRegistry:
     def is_builtin(self, mode_id: str) -> bool:
         return mode_id.upper() in self._builtin
 
-    def list_modes(self, mac: Optional[str] = None) -> list[ModeInfo]:
+    def list_modes(self, mac: str | None = None) -> list[ModeInfo]:
         """List all modes. If mac is provided, only return modes for that device."""
         infos: list[ModeInfo] = []
         for bm in self._builtin.values():
@@ -447,7 +447,7 @@ def _validate_mode_def(definition: dict, *, allow_raw_component_tree: bool = Tru
 
 # ── Singleton ────────────────────────────────────────────────
 
-_registry: Optional[ModeRegistry] = None
+_registry: ModeRegistry | None = None
 
 
 def get_registry() -> ModeRegistry:

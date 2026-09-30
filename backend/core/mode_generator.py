@@ -8,7 +8,7 @@ import json
 import logging
 import re
 
-from .content import _get_client, _clean_json_response
+from .content import _clean_json_response, _get_client
 from .mode_registry import _validate_mode_def
 
 logger = logging.getLogger(__name__)

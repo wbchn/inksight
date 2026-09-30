@@ -1,15 +1,15 @@
 """
 测试新增的 chip_family 字段和 OTA URL 存储功能（对应 device_ota.py 实际逻辑）。
 """
-import pytest
 from unittest.mock import patch
 
+import pytest
 from core.config_store import (
+    get_device_state,
     init_db,
     update_device_state,
-    get_device_state,
 )
-from core.db import get_main_db, close_all
+from core.db import get_main_db
 
 
 @pytest.fixture

@@ -14,9 +14,7 @@
 from __future__ import annotations
 
 import logging
-import random
 from datetime import date
-from typing import Optional
 
 from .static_store import (
     STATIC_MODE_IDS,
@@ -57,7 +55,7 @@ _FALLBACKS: dict[str, dict] = {
 async def generate_static_content(
     mode_id: str,
     mac: str,
-    date_ctx: Optional[dict] = None,
+    date_ctx: dict | None = None,
 ) -> dict:
     """静态内容生成入口。按 mode_id 分发到对应查询函数。
 
@@ -167,7 +165,7 @@ async def _generate_riddle(mac: str, is_preview: bool) -> dict:
     return fb
 
 
-def _build_daily_meta(date_ctx: Optional[dict]) -> dict:
+def _build_daily_meta(date_ctx: dict | None) -> dict:
     """构建 daily_meta 所需的日期元数字段。"""
     today = date.today()
     year = today.year

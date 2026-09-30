@@ -5,23 +5,21 @@
 - API 额度管理（初始化、查询、扣减）
 - 额度耗尽时的硬件兼容逻辑
 """
-import pytest
-from unittest.mock import patch, MagicMock, AsyncMock
-from fastapi.testclient import TestClient
-from fastapi import FastAPI
-from fastapi.responses import JSONResponse
-from api import shared as shared_api
+from unittest.mock import patch
 
+import pytest
+from api import shared as shared_api
 from core.config_store import (
+    authenticate_user,
+    consume_user_free_quota,
+    create_user,
+    get_quota_owner_for_mac,
+    get_user_api_quota,
     init_db,
     init_user_api_quota,
-    get_user_api_quota,
-    consume_user_free_quota,
-    get_quota_owner_for_mac,
-    create_user,
-    authenticate_user,
 )
 from core.db import get_main_db
+from fastapi.responses import JSONResponse
 
 
 @pytest.fixture(autouse=True)
@@ -190,7 +188,11 @@ class TestPasswordReset:
     async def test_reset_password_with_email_verification(self):
         await init_db()
 
-        from api.routes.auth import auth_register, auth_reset_send_code, auth_reset_password
+        from api.routes.auth import (
+            auth_register,
+            auth_reset_password,
+            auth_reset_send_code,
+        )
         from core.email import _pending_codes
         from fastapi import Response
 
@@ -222,7 +224,11 @@ class TestPasswordReset:
     async def test_reset_password_wrong_code_rejected(self):
         await init_db()
 
-        from api.routes.auth import auth_register, auth_reset_send_code, auth_reset_password
+        from api.routes.auth import (
+            auth_register,
+            auth_reset_password,
+            auth_reset_send_code,
+        )
         from fastapi import Response
         from fastapi.responses import JSONResponse
 
@@ -268,8 +274,9 @@ class TestInviteCodeRedemption:
         await db.commit()
         
         # 3. 模拟兑换请求（需要模拟 require_user 依赖）
-        from api.routes.auth import auth_redeem_invite_code
         from unittest.mock import patch
+
+        from api.routes.auth import auth_redeem_invite_code
         
         body = {"invite_code": "REDEEM123"}
         
@@ -564,8 +571,7 @@ class TestQuotaExhaustionHandling:
         await init_user_api_quota(user_id, free_quota=0)  # 额度为 0
         
         # 模拟设备请求（需要 mac 参数）
-        from api.shared import build_image
-        from unittest.mock import patch, AsyncMock
+        from unittest.mock import patch
         
         # 模拟 get_quota_owner_for_mac 返回 user_id
         with patch("api.shared.get_quota_owner_for_mac", return_value=user_id):
@@ -581,7 +587,6 @@ class TestQuotaExhaustionHandling:
         """测试 Web 预览时额度耗尽返回 402 状态码"""
         # 这个测试应该通过 API 路由测试来完成
         # 见 test_integration.py 或专门的 API 测试文件
-        pass
 
 
 class TestLlmPrecheckBehavior:
@@ -647,7 +652,6 @@ class TestLlmPrecheckBehavior:
 
         from core import config_store as cfg_mod
         from core import json_content as json_mod
-        from api import routes as api_pkg
 
         # 覆盖 config_store 内部实现，避免真实访问数据库
         monkeypatch.setattr(cfg_mod, "get_user_llm_config", fake_get_user_llm_config)
